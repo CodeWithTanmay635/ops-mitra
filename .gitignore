@@ -4,6 +4,7 @@ build/
 .cache/
 .env*
 !.env.example
+.pnpmfile.cjs
 .vite/
 vite.config.*.timestamp-*
 *.tsbuildinfo
