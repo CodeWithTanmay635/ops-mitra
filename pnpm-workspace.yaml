@@ -1,0 +1,10 @@
+# pnpm-workspace.yaml — root workspace config
+#
+# The server/ subdirectory is NOT a pnpm workspace member — it manages its
+# own node_modules independently. This file exists solely to set pnpm v12
+# project-level settings at the workspace root.
+#
+# Allow esbuild to run its native binary build scripts.
+# esbuild is required by drizzle-kit and tsup (compile-time tools only).
+onlyBuiltDependencies:
+  - esbuild
