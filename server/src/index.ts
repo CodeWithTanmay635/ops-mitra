@@ -19,9 +19,11 @@
 
 import Fastify from "fastify";
 import sensible from "@fastify/sensible";
+import cors from "@fastify/cors";
 import { env } from "./config/env.js";
 import errorHandler from "./plugins/errorHandler.js";
 import { healthRoutes } from "./routes/health.js";
+import { intelligenceRoutes } from "./routes/intelligence.js";
 
 async function buildApp() {
   const app = Fastify({
@@ -42,33 +44,33 @@ async function buildApp() {
           }
         : {
             level: "info",
-            // In production: plain JSON — easy to parse by log aggregators (Datadog, etc.)
           },
 
-    // Assign a unique ID to each request — useful for correlating logs
-    // across a request's lifecycle (e.g. "where did request abc123 fail?")
+    // Assign a unique ID to each request
     genReqId: () => crypto.randomUUID(),
   });
 
   // ── Plugins ──────────────────────────────────────────────────────────────────
-
-  // @fastify/sensible adds:
-  //   - reply.notFound(), reply.badRequest(), etc. (standard HTTP helpers)
-  //   - request.is() for content-type checking
-  //   - Proper handling of unknown error types
   await app.register(sensible);
-
-  // Our centralized error handler — must be registered before routes
   await app.register(errorHandler);
 
+  // CORS: Allow the Vite frontend dev server (port 8443) and any localhost
+  // origin to call the API. In production this should be locked to the
+  // specific deployed frontend origin via the CORS_ORIGIN env variable.
+  await app.register(cors, {
+    origin: [
+      "http://localhost:8443",
+      "http://127.0.0.1:8443",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+    ],
+    methods: ["GET", "OPTIONS"],
+    credentials: false,
+  });
+
   // ── Routes ───────────────────────────────────────────────────────────────────
-
-  // Health check — registered at root level (GET /health)
   await app.register(healthRoutes);
-
-  // Future route groups will be added here with a prefix, e.g.:
-  //   await app.register(customerRoutes, { prefix: "/api/v1" });
-  //   await app.register(invoiceRoutes,  { prefix: "/api/v1" });
+  await app.register(intelligenceRoutes);
 
   return app;
 }

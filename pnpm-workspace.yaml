@@ -1,3 +1,5 @@
+allowBuilds:
+  esbuild: true
 # pnpm-workspace.yaml — root workspace config
 #
 # The server/ subdirectory is NOT a pnpm workspace member — it manages its
@@ -6,5 +8,3 @@
 #
 # Allow esbuild to run its native binary build scripts.
 # esbuild is required by drizzle-kit and tsup (compile-time tools only).
-onlyBuiltDependencies:
-  - esbuild

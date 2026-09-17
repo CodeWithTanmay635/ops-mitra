@@ -1,24 +1,93 @@
 import { useState, useEffect, useRef } from "react";
+import {
+  fetchPortfolio,
+  ApiError,
+  type ApiPortfolioAssessment,
+  type ApiCustomerAssessment,
+} from "./lib/api";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
 const C = {
-  bg:          "#EAE5DC",   // warm off-white canvas
-  surface:     "#EAE5DC",   // cards same as bg — shadow lifts them
-  surfaceAlt:  "#F2EDE5",   // slightly lighter surface for inset contexts
-  ink:         "#1C2535",   // primary text
-  ink2:        "#56657A",   // secondary text
-  ink3:        "#96A3B4",   // captions, metadata
+  bg:          "#EAE5DC",
+  surface:     "#EAE5DC",
+  surfaceAlt:  "#F2EDE5",
+  ink:         "#1C2535",
+  ink2:        "#56657A",
+  ink3:        "#96A3B4",
   border:      "rgba(28,37,53,0.08)",
-  orange:      "#C47840",   // muted amber — primary accent
+  orange:      "#C47840",
   orangeFaint: "rgba(196,120,64,0.10)",
-  sage:        "#3D8060",   // positive / healthy
+  sage:        "#3D8060",
   sageFaint:   "rgba(61,128,96,0.10)",
-  rose:        "#B04848",   // risk — used sparingly
+  rose:        "#B04848",
   roseFaint:   "rgba(176,72,72,0.10)",
-  gold:        "#A08040",   // attention
+  gold:        "#A08040",
   goldFaint:   "rgba(160,128,64,0.10)",
 };
+
+// ─── Presentation formatters (UI layer only — no financial logic) ──────────────
+
+/** 12_400_000 paise → "₹1.24L" */
+function paiseLakhs(paise: number): string {
+  const lakhs = paise / 10_000_000;
+  const s = lakhs.toFixed(2).replace(/\.?0+$/, "");
+  return `\u20b9${s}L`;
+}
+
+/** 8_740_000 paise → "₹87,400" */
+function paiseRupees(paise: number): string {
+  const rupees = paise / 100;
+  return "\u20b9" + rupees.toLocaleString("en-IN");
+}
+
+/** "2025-08-15" → "15 Aug" */
+function fmtDate(iso: string): string {
+  const d = new Date(iso + "T00:00:00");
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+/** Map backend totalRiskScore to local Pill kind. */
+function riskKind(score: number): "risk" | "attention" | "healthy" {
+  if (score >= 70) return "risk";
+  if (score >= 40) return "attention";
+  return "healthy";
+}
+
+// ─── Data-loading hook ────────────────────────────────────────────────────────
+
+type FetchState<T> =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "success"; data: T };
+
+function usePortfolio() {
+  const [state, setState] = useState<FetchState<ApiPortfolioAssessment>>({ status: "idle" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    fetchPortfolio()
+      .then((data) => {
+        if (!cancelled) setState({ status: "success", data });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        let message = "Could not reach the OpsMitra backend.";
+        if (err instanceof ApiError) {
+          message = `API error ${err.status}: ${err.body.message}`;
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
+        setState({ status: "error", message });
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  return state;
+}
 
 // ─── Count-up ─────────────────────────────────────────────────────────────────
 
@@ -42,7 +111,7 @@ function useCountUp(target: number, decimals = 0, delay = 0) {
   return val;
 }
 
-// ─── Icons — thin stroke, restrained ─────────────────────────────────────────
+// ─── Icons ────────────────────────────────────────────────────────────────────
 
 const Ic = {
   Home:      () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
@@ -55,16 +124,14 @@ const Ic = {
   Bell:      () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
   Search:    () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
   Menu:      () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
-  X:         () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   ArrowRight:() => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
   ChevRight: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
   ChevDown:  () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
   TrendUp:   () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
   TrendDown: () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>,
   Filter:    () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
-  Check:     () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>,
   Spin:      () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 1.2s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>,
-  Clock:     () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  AlertCircle: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
 };
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
@@ -97,7 +164,6 @@ function Btn({ variant = "primary", size = "md", children, onClick, disabled, ic
   variant?: BtnVariant; size?: "sm" | "md";
   children?: React.ReactNode; onClick?: () => void; disabled?: boolean; icon?: React.ReactNode;
 }) {
-  const [pressed, setPressed] = useState(false);
   const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2 text-sm" };
   const v: Record<BtnVariant, { bg: string; color: string; border?: string }> = {
     primary:   { bg: C.orange,   color: "#fff" },
@@ -113,8 +179,10 @@ function Btn({ variant = "primary", size = "md", children, onClick, disabled, ic
         backgroundColor: s.bg, color: s.color,
         border: s.border ? `1px solid ${s.border}` : "none",
         opacity: disabled ? 0.4 : 1,
-        boxShadow: variant === "primary" ? "3px 3px 8px rgba(0,0,0,0.10), -2px -2px 5px rgba(255,255,255,0.60)"
-          : variant === "secondary" ? "3px 3px 7px rgba(0,0,0,0.07), -2px -2px 5px rgba(255,255,255,0.80)"
+        boxShadow: variant === "primary"
+          ? "3px 3px 8px rgba(0,0,0,0.10), -2px -2px 5px rgba(255,255,255,0.60)"
+          : variant === "secondary"
+          ? "3px 3px 7px rgba(0,0,0,0.07), -2px -2px 5px rgba(255,255,255,0.80)"
           : undefined,
       }}
       onClick={onClick} disabled={disabled}>
@@ -124,69 +192,101 @@ function Btn({ variant = "primary", size = "md", children, onClick, disabled, ic
   );
 }
 
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function Skeleton({ w = "100%", h = 18 }: { w?: string | number; h?: number }) {
+  return (
+    <div style={{
+      width: w, height: h, borderRadius: 6,
+      background: `linear-gradient(90deg, ${C.border} 25%, rgba(28,37,53,0.04) 50%, ${C.border} 75%)`,
+      backgroundSize: "200% 100%",
+      animation: "shimmer 1.4s ease infinite",
+    }} />
+  );
+}
+
+// ─── Error banner ─────────────────────────────────────────────────────────────
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 10,
+      padding: "14px 18px", borderRadius: 12,
+      backgroundColor: C.roseFaint,
+      border: "1px solid rgba(176,72,72,0.18)",
+      color: C.rose,
+    }}>
+      <span style={{ flexShrink: 0, marginTop: 1 }}><Ic.AlertCircle /></span>
+      <div>
+        <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>Unable to load intelligence data</p>
+        <p style={{ fontSize: 12, opacity: 0.85 }}>{message}</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-const navItems = [
-  { id: "overview",     label: "Overview",      icon: <Ic.Home />    },
-  { id: "receivables",  label: "Receivables",   icon: <Ic.Dollar />, badge: 3 },
-  { id: "customers",    label: "Customers",     icon: <Ic.Users />   },
-  { id: "insights",     label: "Insights",      icon: <Ic.Sliders /> },
-  { id: "datasources",  label: "Data sources",  icon: <Ic.Database />},
-  { id: "settings",     label: "Settings",      icon: <Ic.Settings />},
+const NAV_ITEMS = [
+  { id: "overview",    label: "Overview",     icon: <Ic.Home />    },
+  { id: "receivables", label: "Receivables",  icon: <Ic.Dollar />  },
+  { id: "customers",   label: "Customers",    icon: <Ic.Users />   },
+  { id: "insights",    label: "Insights",     icon: <Ic.Sliders /> },
+  { id: "datasources", label: "Data sources", icon: <Ic.Database />},
+  { id: "settings",    label: "Settings",     icon: <Ic.Settings />},
 ];
 
-function Sidebar({ active, onChange, onClose }: { active: string; onChange: (id: string) => void; onClose?: () => void }) {
+function Sidebar({
+  active,
+  onChange,
+  onClose,
+  highRiskCount,
+}: {
+  active: string;
+  onChange: (id: string) => void;
+  onClose?: () => void;
+  highRiskCount: number;
+}) {
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: C.bg }}>
-      {/* Brand */}
       <div style={{ padding: "28px 20px 20px" }}>
         <p style={{ fontSize: 15, fontWeight: 600, color: C.ink, letterSpacing: "-0.3px" }}>OpsMitra</p>
       </div>
-
       <Divider />
-
-      {/* Nav */}
       <nav style={{ flex: 1, padding: "12px 12px", overflowY: "auto" }}>
-        {navItems.map((item) => {
+        {NAV_ITEMS.map((item) => {
           const isActive = active === item.id;
+          // Live badge on Receivables driven by highRiskCount from backend
+          const badge = item.id === "receivables" && highRiskCount > 0 ? highRiskCount : null;
           return (
             <button
               key={item.id}
               onClick={() => { onChange(item.id); onClose?.(); }}
               className="w-full flex items-center gap-2.5 text-left cursor-pointer transition-all duration-200"
               style={{
-                padding: "9px 10px",
-                borderRadius: 10,
-                marginBottom: 2,
+                padding: "9px 10px", borderRadius: 10, marginBottom: 2,
                 color: isActive ? C.ink : C.ink2,
                 backgroundColor: "transparent",
                 boxShadow: isActive
                   ? "inset 2px 2px 4px rgba(0,0,0,0.07), inset -1px -1px 3px rgba(255,255,255,0.70)"
                   : undefined,
-                fontWeight: isActive ? 500 : 400,
-                fontSize: 13.5,
+                fontWeight: isActive ? 500 : 400, fontSize: 13.5,
               }}>
               <span style={{ color: isActive ? C.orange : C.ink3, flexShrink: 0 }}>{item.icon}</span>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
-              {item.badge && (
+              {badge !== null && (
                 <span style={{
                   backgroundColor: C.rose, color: "#fff",
                   fontSize: 10, fontWeight: 700,
                   width: 18, height: 18, borderRadius: "50%",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0,
-                }}>
-                  {item.badge}
-                </span>
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>{badge}</span>
               )}
             </button>
           );
         })}
       </nav>
-
       <Divider />
-
-      {/* User */}
       <div style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{
           width: 30, height: 30, borderRadius: 8, backgroundColor: C.orange,
@@ -196,7 +296,7 @@ function Sidebar({ active, onChange, onClose }: { active: string; onChange: (id:
         }}>RK</div>
         <div style={{ minWidth: 0 }}>
           <p style={{ fontSize: 12.5, fontWeight: 500, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Rajan Kumar</p>
-          <p style={{ fontSize: 11, color: C.ink3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Admin</p>
+          <p style={{ fontSize: 11, color: C.ink3 }}>Admin</p>
         </div>
       </div>
     </div>
@@ -210,8 +310,7 @@ function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: () => voi
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "0 24px", height: 56, flexShrink: 0,
-      borderBottom: `1px solid ${C.border}`,
-      backgroundColor: C.bg,
+      borderBottom: `1px solid ${C.border}`, backgroundColor: C.bg,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
         <button onClick={onMenuClick} className="menu-btn"
@@ -220,21 +319,14 @@ function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: () => voi
         </button>
         <h1 style={{ fontSize: 14, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</h1>
       </div>
-
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        {/* Search */}
         <div className="hidden sm:flex" style={{
-          alignItems: "center", gap: 7, padding: "6px 12px",
-          borderRadius: 10, backgroundColor: C.bg,
+          alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 10, backgroundColor: C.bg,
           boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.07), inset -1px -1px 3px rgba(255,255,255,0.70)",
         }}>
           <span style={{ color: C.ink3 }}><Ic.Search /></span>
-          <input placeholder="Search" style={{
-            background: "none", border: "none", outline: "none",
-            fontSize: 12.5, color: C.ink, width: 120, fontFamily: "inherit",
-          }} />
+          <input placeholder="Search" style={{ background: "none", border: "none", outline: "none", fontSize: 12.5, color: C.ink, width: 120, fontFamily: "inherit" }} />
         </div>
-        {/* Bell */}
         <button style={{
           width: 34, height: 34, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
           backgroundColor: C.bg, border: "none", cursor: "pointer", color: C.ink3, position: "relative",
@@ -243,10 +335,8 @@ function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: () => voi
           <Ic.Bell />
           <span style={{ position: "absolute", top: 8, right: 8, width: 6, height: 6, borderRadius: "50%", backgroundColor: C.orange }} />
         </button>
-        {/* Period */}
         <button className="hidden sm:flex" style={{
-          alignItems: "center", gap: 5, padding: "6px 12px",
-          borderRadius: 10, backgroundColor: C.bg, border: "none",
+          alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 10, backgroundColor: C.bg, border: "none",
           fontSize: 12.5, fontWeight: 500, color: C.ink2, cursor: "pointer",
           boxShadow: "3px 3px 7px rgba(0,0,0,0.07), -2px -2px 5px rgba(255,255,255,0.80)",
         }}>
@@ -257,8 +347,7 @@ function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: () => voi
   );
 }
 
-
-// ─── KPI Cards ────────────────────────────────────────────────────────────────
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
 
 function KPICard({ label, value, sub, delta, kind, delay = 0 }: {
   label: string; value: string; sub?: string; delta?: string;
@@ -278,12 +367,8 @@ function KPICard({ label, value, sub, delta, kind, delay = 0 }: {
           : "3px 3px 8px rgba(0,0,0,0.07), -2px -2px 6px rgba(255,255,255,0.80)",
         transform: hovered ? "translateY(-1px)" : "translateY(0)",
       }}>
-      <p style={{ fontSize: 11.5, fontWeight: 500, color: C.ink3, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>
-        {label}
-      </p>
-      <p style={{ fontSize: 24, fontWeight: 700, color: C.ink, letterSpacing: "-0.5px", lineHeight: 1, marginBottom: 6, fontVariantNumeric: "tabular-nums", fontFeatureSettings: '"tnum"' }}>
-        {value}
-      </p>
+      <p style={{ fontSize: 11.5, fontWeight: 500, color: C.ink3, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>{label}</p>
+      <p style={{ fontSize: 24, fontWeight: 700, color: C.ink, letterSpacing: "-0.5px", lineHeight: 1, marginBottom: 6, fontVariantNumeric: "tabular-nums", fontFeatureSettings: '"tnum"' }}>{value}</p>
       {sub && <p style={{ fontSize: 12, color: C.ink2, marginBottom: delta ? 4 : 0 }}>{sub}</p>}
       {delta && (
         <p style={{ fontSize: 12, color: deltaColor, display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
@@ -295,80 +380,71 @@ function KPICard({ label, value, sub, delta, kind, delay = 0 }: {
   );
 }
 
-// ─── Insight Card ("What needs attention") ────────────────────────────────────
-
-interface Insight {
-  id: number;
-  title: string;
-  signal: string;
-  fact: string;
-  recommendedLabel: string;
-  action: string;
-  kind: "risk" | "attention" | "healthy";
-  evidence: { label: string; detail: string }[];
+function KPICardSkeleton() {
+  return (
+    <div style={{ backgroundColor: C.surface, borderRadius: 14, padding: "18px 20px",
+      boxShadow: "3px 3px 8px rgba(0,0,0,0.07), -2px -2px 6px rgba(255,255,255,0.80)" }}>
+      <Skeleton w={80} h={11} />
+      <div style={{ marginTop: 10, marginBottom: 6 }}><Skeleton w={110} h={24} /></div>
+      <Skeleton w={130} h={12} />
+    </div>
+  );
 }
 
-const insights: Insight[] = [
-  {
-    id: 1,
-    title: "Recover ₹2.4L from Mehta Traders",
-    signal: "43 days overdue",
-    fact: "Normal payment cycle: 18 days",
-    recommendedLabel: "Recommended action",
-    action: "Contact customer today",
-    kind: "risk",
-    evidence: [
-      { label: "Invoice",             detail: "INV-2408 issued Jun 26 · ₹2,40,000" },
-      { label: "Payment history",     detail: "6 prior invoices — all paid within 15–21 days" },
-      { label: "Current delay",       detail: "25 days beyond their normal 18-day cycle" },
-      { label: "Portfolio exposure",  detail: "This account is 13% of total outstanding receivables" },
-      { label: "Risk if unresolved",  detail: "Accounts past 60 days show 34% write-off rate historically" },
-    ],
-  },
-  {
-    id: 2,
-    title: "Patel Electronics likely to reorder",
-    signal: "Reorder window: next 8–10 days",
-    fact: "Average purchase cycle: 91 days · Last order Jul 18",
-    recommendedLabel: "Recommended action",
-    action: "Schedule outreach this week",
-    kind: "attention",
-    evidence: [
-      { label: "Purchase pattern",    detail: "Orders placed every 88–94 days across last 4 cycles" },
-      { label: "Last order",          detail: "Jul 18, 2025 · ₹87,400" },
-      { label: "Expected window",     detail: "Aug 16–22 based on cycle average" },
-      { label: "Opportunity",         detail: "Proactive outreach in this window adds 18% to average order value" },
-    ],
-  },
-  {
-    id: 3,
-    title: "North region sales on track",
-    signal: "Projecting ₹4.1L for August",
-    fact: "Target: ₹3.9L · 6% above target",
-    recommendedLabel: "No action required",
-    action: "Monitor weekly",
-    kind: "healthy",
-    evidence: [
-      { label: "Week 1–2",     detail: "Sales dipped 12% — likely seasonal" },
-      { label: "Week 3–4",     detail: "Recovered to target run-rate from Aug 11" },
-      { label: "Projection",   detail: "₹4.1L by month-end (range: ₹3.8L–₹4.4L)" },
-    ],
-  },
-];
+// ─── Insight card (driven by API ranking) ─────────────────────────────────────
 
-function InsightCard({ d, index }: { d: Insight; index: number }) {
+function InsightCard({ ranking, index }: { ranking: ApiCustomerAssessment; index: number }) {
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [bodyH, setBodyH] = useState(0);
-  useEffect(() => { if (bodyRef.current) setBodyH(bodyRef.current.scrollHeight); }, []);
+  useEffect(() => { if (bodyRef.current) setBodyH(bodyRef.current.scrollHeight); }, [expanded]);
 
-  const kindColor = { risk: C.rose, attention: C.gold, healthy: C.sage }[d.kind];
-  const kindFaint = { risk: C.roseFaint, attention: C.goldFaint, healthy: C.sageFaint }[d.kind];
+  const { signals, risk, recommendation, openInvoices } = ranking;
+  const kind = riskKind(risk.totalRiskScore);
+  const kindColor = { risk: C.rose, attention: C.gold, healthy: C.sage }[kind];
+  const kindFaint  = { risk: C.roseFaint, attention: C.goldFaint, healthy: C.sageFaint }[kind];
+
+  const actionLabel: Record<string, string> = {
+    ESCALATE_IMMEDIATELY:       "Escalate immediately",
+    SEND_FORMAL_REMINDER:       "Send formal reminder",
+    PROACTIVE_CHECKIN:          "Schedule proactive check-in",
+    SCHEDULE_COURTESY_REMINDER: "Schedule courtesy reminder",
+    MONITOR:                    "Monitor — no immediate action",
+  };
+
+  const signalLine = signals.maxOverdueDays > 0
+    ? `${signals.maxOverdueDays} days overdue`
+    : signals.openCycleDriftDays > 0
+      ? `Payment cycle drifting ${signals.openCycleDriftDays}d beyond baseline`
+      : "Within normal payment parameters";
+
+  const factLine = signals.baselineAvailable && signals.historicalBaselinePaymentDays !== null
+    ? `Normal payment cycle: ${Math.round(signals.historicalBaselinePaymentDays)} days`
+    : `Outstanding: ${paiseRupees(signals.outstandingExposurePaise)}`;
+
+  const title = `${recommendation.action === "ESCALATE_IMMEDIATELY" ? "Recover" : "Follow up on"} ${paiseRupees(signals.outstandingExposurePaise)} from ${ranking.customerName}`;
+
+  const evidence: { label: string; detail: string }[] = [];
+  const firstInv = openInvoices[0];
+  if (firstInv) {
+    evidence.push({ label: "Invoice", detail: `${firstInv.invoiceNumber} issued ${fmtDate(firstInv.issuedAt)} · ${paiseRupees(firstInv.totalAmountPaise)}` });
+  }
+  if (signals.baselineAvailable && signals.historicalBaselinePaymentDays !== null) {
+    evidence.push({ label: "Normal cycle", detail: `${Math.round(signals.historicalBaselinePaymentDays)} days avg payment time` });
+  }
+  if (signals.openCycleDriftDays > 0) {
+    evidence.push({ label: "Cycle drift", detail: `${signals.openCycleDriftDays}d beyond their normal cycle` });
+  }
+  evidence.push({ label: "Risk score", detail: `${risk.totalRiskScore}/100 (${risk.riskCategory})` });
+  evidence.push({ label: "Priority rank", detail: `#${ranking.priority.priorityRank ?? "—"} in portfolio` });
+  if (recommendation.reasonCodes.length > 0) {
+    evidence.push({ label: "Reason codes", detail: recommendation.reasonCodes.join(", ") });
+  }
 
   return (
     <div
-      className={`rise-${index + 1}`}
+      className={`rise-${Math.min(index + 1, 3)}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -380,46 +456,32 @@ function InsightCard({ d, index }: { d: Insight; index: number }) {
         transform: hovered ? "translateY(-1px)" : "translateY(0)",
         overflow: "hidden",
       }}>
-
-      {/* Subtle left accent — 3px, not a colored bar */}
       <div style={{ display: "flex", gap: 0 }}>
         <div style={{ width: 3, backgroundColor: kindColor, borderRadius: "14px 0 0 14px", flexShrink: 0 }} />
-
         <div style={{ flex: 1, padding: "18px 20px" }}>
-          {/* Title + kind indicator */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: C.ink, lineHeight: 1.3, margin: 0 }}>{d.title}</h3>
-            <StatusPill kind={d.kind}>
-              {d.kind === "risk" ? "Overdue" : d.kind === "attention" ? "Opportunity" : "On track"}
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: C.ink, lineHeight: 1.3, margin: 0 }}>{title}</h3>
+            <StatusPill kind={kind}>
+              {kind === "risk" ? "Overdue" : kind === "attention" ? "Watch" : "On track"}
             </StatusPill>
           </div>
-
-          {/* Signal + fact */}
-          <p style={{ fontSize: 13, color: C.rose, fontWeight: 500, marginBottom: 3 }}>{d.signal}</p>
-          <p style={{ fontSize: 12.5, color: C.ink3, marginBottom: 14 }}>{d.fact}</p>
-
-          {/* Divider */}
+          <p style={{ fontSize: 13, color: C.rose, fontWeight: 500, marginBottom: 3 }}>{signalLine}</p>
+          <p style={{ fontSize: 12.5, color: C.ink3, marginBottom: 14 }}>{factLine}</p>
           <Divider />
-
-          {/* Recommended action */}
           <div style={{ marginTop: 12, marginBottom: 14 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
-              {d.recommendedLabel}
-            </p>
-            <p style={{ fontSize: 13.5, fontWeight: 500, color: C.ink }}>{d.action}</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Recommended action</p>
+            <p style={{ fontSize: 13.5, fontWeight: 500, color: C.ink }}>{actionLabel[recommendation.action] ?? recommendation.action}</p>
           </div>
-
-          {/* Actions row */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Btn variant="primary" size="sm" icon={<Ic.ArrowRight />}>
-              {d.kind === "risk" ? "Send reminder" : d.kind === "attention" ? "Schedule outreach" : "View trend"}
+              {kind === "risk" ? "Send reminder" : kind === "attention" ? "Schedule outreach" : "View trend"}
             </Btn>
             <button
               onClick={() => setExpanded(!expanded)}
               style={{
                 background: "none", border: "none", cursor: "pointer",
                 fontSize: 12.5, color: C.ink3, display: "flex", alignItems: "center", gap: 4,
-                padding: "6px 0", fontFamily: "inherit", transition: "color 0.15s",
+                padding: "6px 0", fontFamily: "inherit",
               }}>
               <span style={{ transition: "transform 0.3s ease", transform: expanded ? "rotate(90deg)" : "rotate(0deg)", display: "inline-flex" }}>
                 <Ic.ChevRight />
@@ -427,21 +489,15 @@ function InsightCard({ d, index }: { d: Insight; index: number }) {
               {expanded ? "Hide details" : "View details"}
             </button>
           </div>
-
-          {/* Evidence — smooth expand */}
           <div style={{
-            maxHeight: expanded ? bodyH + 16 : 0,
-            opacity: expanded ? 1 : 0,
-            overflow: "hidden",
-            transition: "max-height 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.28s ease",
+            maxHeight: expanded ? bodyH + 16 : 0, opacity: expanded ? 1 : 0,
+            overflow: "hidden", transition: "max-height 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.28s ease",
           }}>
             <div ref={bodyRef}>
               <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 10, backgroundColor: kindFaint }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-                  Details
-                </p>
+                <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Details</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {d.evidence.map((e, i) => (
+                  {evidence.map((e, i) => (
                     <div key={i} style={{ display: "flex", gap: 12 }}>
                       <p style={{ fontSize: 12, fontWeight: 600, color: C.ink2, width: 130, flexShrink: 0, lineHeight: 1.4 }}>{e.label}</p>
                       <p style={{ fontSize: 12, color: C.ink2, lineHeight: 1.4 }}>{e.detail}</p>
@@ -451,14 +507,15 @@ function InsightCard({ d, index }: { d: Insight; index: number }) {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Revenue chart — thin, minimal ────────────────────────────────────────────
+// ─── Revenue chart — intentionally static ─────────────────────────────────────
+// No Milestone 2 endpoint provides revenue history. These values match the
+// seeded monthly sales distribution and remain accurate for the demo period.
 
 function RevenueBar() {
   const data = [
@@ -478,7 +535,6 @@ function RevenueBar() {
               width: "100%", borderRadius: 4, height: `${h}%`,
               backgroundColor: isLast ? C.orange : C.border,
               opacity: isLast ? 1 : 0.7,
-              transition: "opacity 0.15s",
               boxShadow: isLast ? "0 2px 8px rgba(196,120,64,0.25)" : undefined,
             }} />
             <span style={{ fontSize: 9, color: C.ink3, fontFamily: "DM Mono, monospace" }}>{d.m}</span>
@@ -489,22 +545,24 @@ function RevenueBar() {
   );
 }
 
-// ─── Data table ───────────────────────────────────────────────────────────────
+// ─── Invoice table — driven by portfolio open invoices ────────────────────────
 
-const tableRows = [
-  { id:"INV-2408", customer:"Mehta Traders",    amount:"₹1,24,000", date:"12 Aug", status:"overdue" as const, days:"43d" },
-  { id:"INV-2412", customer:"Patel Electronics", amount:"₹87,400",  date:"15 Aug", status:"pending" as const, days:"30d" },
-  { id:"INV-2415", customer:"Gupta & Sons",      amount:"₹2,31,000",date:"18 Aug", status:"pending" as const, days:"30d" },
-  { id:"INV-2418", customer:"Singh Textiles",    amount:"₹56,800",  date:"20 Aug", status:"paid" as const,    days:"—"  },
-  { id:"INV-2421", customer:"Kapoor & Co",       amount:"₹1,08,500",date:"22 Aug", status:"pending" as const, days:"30d"},
-];
+function buildRows(rankings: ApiCustomerAssessment[]) {
+  return rankings.flatMap((r) =>
+    r.openInvoices.map((inv) => ({
+      invoiceNumber: inv.invoiceNumber,
+      customerName: r.customerName,
+      outstandingBalancePaise: inv.outstandingBalancePaise,
+      issuedAt: inv.issuedAt,
+      isOverdue: inv.isOverdue,
+      overdueDays: inv.overdueDays,
+      daysUntilDue: inv.daysUntilDue,
+    }))
+  );
+}
 
-function DataTable() {
-  const sm = {
-    overdue: { label:"Overdue", kind:"risk" as Pill },
-    pending: { label:"Pending", kind:"attention" as Pill },
-    paid:    { label:"Settled", kind:"healthy" as Pill },
-  };
+function DataTable({ rankings }: { rankings: ApiCustomerAssessment[] }) {
+  const rows = buildRows(rankings);
   return (
     <div style={{ borderRadius: 14, overflow: "hidden", boxShadow: "3px 3px 8px rgba(0,0,0,0.07), -2px -2px 6px rgba(255,255,255,0.80)" }}>
       <div style={{ overflowX: "auto" }}>
@@ -517,19 +575,23 @@ function DataTable() {
             </tr>
           </thead>
           <tbody>
-            {tableRows.map((row, i) => {
-              const s = sm[row.status];
+            {rows.map((row, i) => {
+              const pillKind: Pill = row.isOverdue ? "risk" : "attention";
+              const pillLabel = row.isOverdue ? "Overdue" : "Pending";
+              const age = row.isOverdue
+                ? `${row.overdueDays}d`
+                : row.daysUntilDue >= 0 ? `${row.daysUntilDue}d` : "—";
               return (
-                <tr key={row.id}
+                <tr key={`${row.invoiceNumber}-${i}`}
                   style={{ borderTop: `1px solid ${C.border}`, backgroundColor: C.surface, cursor: "pointer" }}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.5)")}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.surface)}>
-                  <td style={{ padding: "12px 16px", fontFamily: "DM Mono, monospace", fontSize: 12, color: C.ink3, whiteSpace: "nowrap" }}>{row.id}</td>
-                  <td style={{ padding: "12px 16px", fontSize: 13.5, fontWeight: 500, color: C.ink }}>{row.customer}</td>
-                  <td style={{ padding: "12px 16px", fontFamily: "DM Mono, monospace", fontSize: 13.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{row.amount}</td>
-                  <td style={{ padding: "12px 16px", fontSize: 12.5, color: C.ink3, whiteSpace: "nowrap" }}>{row.date}</td>
-                  <td style={{ padding: "12px 16px" }}><StatusPill kind={s.kind}>{s.label}</StatusPill></td>
-                  <td style={{ padding: "12px 16px", fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: row.status === "overdue" ? C.rose : C.ink3, whiteSpace: "nowrap" }}>{row.days}</td>
+                  <td style={{ padding: "12px 16px", fontFamily: "DM Mono, monospace", fontSize: 12, color: C.ink3, whiteSpace: "nowrap" }}>{row.invoiceNumber}</td>
+                  <td style={{ padding: "12px 16px", fontSize: 13.5, fontWeight: 500, color: C.ink }}>{row.customerName}</td>
+                  <td style={{ padding: "12px 16px", fontFamily: "DM Mono, monospace", fontSize: 13.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{paiseRupees(row.outstandingBalancePaise)}</td>
+                  <td style={{ padding: "12px 16px", fontSize: 12.5, color: C.ink3, whiteSpace: "nowrap" }}>{fmtDate(row.issuedAt)}</td>
+                  <td style={{ padding: "12px 16px" }}><StatusPill kind={pillKind}>{pillLabel}</StatusPill></td>
+                  <td style={{ padding: "12px 16px", fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: row.isOverdue ? C.rose : C.ink3, whiteSpace: "nowrap" }}>{age}</td>
                 </tr>
               );
             })}
@@ -540,26 +602,26 @@ function DataTable() {
   );
 }
 
-function MobileTransactions() {
-  const sm = { overdue:{label:"Overdue",kind:"risk" as Pill}, pending:{label:"Pending",kind:"attention" as Pill}, paid:{label:"Settled",kind:"healthy" as Pill} };
+function MobileTransactions({ rankings }: { rankings: ApiCustomerAssessment[] }) {
+  const rows = buildRows(rankings);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {tableRows.map((row) => {
-        const s = sm[row.status];
+      {rows.map((row, i) => {
+        const pillKind: Pill = row.isOverdue ? "risk" : "attention";
+        const pillLabel = row.isOverdue ? "Overdue" : "Pending";
+        const ageLabel = row.isOverdue ? `${row.overdueDays}d overdue` : `Due in ${row.daysUntilDue}d`;
         return (
-          <div key={row.id} className="s-card" style={{ backgroundColor: C.surface, borderRadius: 12, padding: "14px 16px" }}>
+          <div key={`${row.invoiceNumber}-${i}`} className="s-card" style={{ backgroundColor: C.surface, borderRadius: 12, padding: "14px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 8 }}>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.customer}</p>
-                <p style={{ fontSize: 11.5, color: C.ink3, fontFamily: "DM Mono, monospace", marginTop: 2 }}>{row.id} · {row.date}</p>
+                <p style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.customerName}</p>
+                <p style={{ fontSize: 11.5, color: C.ink3, fontFamily: "DM Mono, monospace", marginTop: 2 }}>{row.invoiceNumber} · {fmtDate(row.issuedAt)}</p>
               </div>
-              <StatusPill kind={s.kind}>{s.label}</StatusPill>
+              <StatusPill kind={pillKind}>{pillLabel}</StatusPill>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: C.ink, fontFamily: "DM Mono, monospace", fontVariantNumeric: "tabular-nums" }}>{row.amount}</span>
-              <span style={{ fontSize: 12, fontFamily: "DM Mono, monospace", fontWeight: 600, color: row.status === "overdue" ? C.rose : C.ink3 }}>
-                {row.status === "overdue" ? `${row.days} overdue` : row.days === "—" ? "Settled" : `Due in ${row.days}`}
-              </span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: C.ink, fontFamily: "DM Mono, monospace", fontVariantNumeric: "tabular-nums" }}>{paiseRupees(row.outstandingBalancePaise)}</span>
+              <span style={{ fontSize: 12, fontFamily: "DM Mono, monospace", fontWeight: 600, color: row.isOverdue ? C.rose : C.ink3 }}>{ageLabel}</span>
             </div>
           </div>
         );
@@ -570,12 +632,17 @@ function MobileTransactions() {
 
 // ─── Overview screen ──────────────────────────────────────────────────────────
 
-function OverviewScreen() {
-  // Count-up KPIs
-  const rev  = useCountUp(18.7, 1, 200);
-  const due  = useCountUp(6.2,  1, 300);
-  const cust = useCountUp(142,  0, 400);
-  const dso  = useCountUp(34,   0, 500);
+function OverviewScreen({ portfolio }: { portfolio: ApiPortfolioAssessment }) {
+  const { rankings, totalPortfolioOutstandingPaise, totalPortfolioOverduePaise, highRiskCount } = portfolio;
+
+  // Static: revenue has no Milestone 2 backend equivalent
+  const revLakhs = useCountUp(18.7, 1, 200);
+
+  // Live: count of customers with non-MONITOR recommendations
+  const actionableCount = rankings.filter((r) => r.recommendation.action !== "MONITOR").length;
+
+  // Insight cards: only show customers needing action, up to 3
+  const insightRankings = rankings.filter((r) => r.recommendation.action !== "MONITOR").slice(0, 3);
 
   return (
     <div style={{ flex: 1, overflowY: "auto", backgroundColor: C.bg }}>
@@ -585,22 +652,46 @@ function OverviewScreen() {
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: C.ink, letterSpacing: "-0.3px", marginBottom: 4 }}>Good morning, Rajan</h2>
           <p style={{ fontSize: 13.5, color: C.ink2 }}>
-            3 items need attention today · August 2025
+            {actionableCount > 0
+              ? `${actionableCount} ${actionableCount === 1 ? "item needs" : "items need"} attention today · ${portfolio.assessmentDate}`
+              : `All customers within normal parameters · ${portfolio.assessmentDate}`}
           </p>
         </div>
 
-        {/* ── KPI metrics ── */}
+        {/* KPI metrics */}
         <div>
           <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>Key metrics</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }} className="md-4-col">
-            <KPICard label="Revenue" value={`₹${rev}L`} delta="+8.4%" kind="healthy" delay={200} />
-            <KPICard label="Cash at risk" value={`₹${due}L`} sub={`₹2.8L overdue`} delta="+18% from last month" kind="risk" delay={300} />
-            <KPICard label="Receivables" value="₹7.4L" sub="₹1.9L overdue" kind="neutral" delay={400} />
-            <KPICard label="Priority actions" value="6" sub="2 require attention" kind="attention" delay={500} />
+            {/* Revenue: static — no M2 revenue endpoint */}
+            <KPICard label="Revenue" value={`\u20b9${revLakhs}L`} delta="+8.4%" kind="healthy" delay={200} />
+            {/* Cash at risk: live — total overdue paise from portfolio */}
+            <KPICard
+              label="Cash at risk"
+              value={paiseLakhs(totalPortfolioOverduePaise)}
+              sub={totalPortfolioOverduePaise > 0 ? `${paiseRupees(totalPortfolioOverduePaise)} overdue` : "No overdue invoices"}
+              kind={totalPortfolioOverduePaise > 0 ? "risk" : "healthy"}
+              delay={300}
+            />
+            {/* Receivables: live — total outstanding paise from portfolio */}
+            <KPICard
+              label="Receivables"
+              value={paiseLakhs(totalPortfolioOutstandingPaise)}
+              sub={`${paiseLakhs(totalPortfolioOverduePaise)} overdue`}
+              kind="neutral"
+              delay={400}
+            />
+            {/* Priority actions: live — non-MONITOR recommendation count */}
+            <KPICard
+              label="Priority actions"
+              value={String(actionableCount)}
+              sub={highRiskCount > 0 ? `${highRiskCount} high-risk customer${highRiskCount > 1 ? "s" : ""}` : "No high-risk customers"}
+              kind={actionableCount > 0 ? "attention" : "healthy"}
+              delay={500}
+            />
           </div>
         </div>
 
-        {/* ── Main grid ── */}
+        {/* Main grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }} className="lg-3col">
 
           {/* Left: Insights + Table */}
@@ -612,29 +703,40 @@ function OverviewScreen() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em" }}>What needs attention</p>
                 <button style={{ fontSize: 12.5, color: C.ink3, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>View all</button>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {insights.map((d, i) => <InsightCard key={d.id} d={d} index={i} />)}
-              </div>
+              {insightRankings.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {insightRankings.map((r, i) => <InsightCard key={r.customerId} ranking={r} index={i} />)}
+                </div>
+              ) : (
+                <div style={{
+                  padding: "24px 20px", borderRadius: 14, textAlign: "center",
+                  backgroundColor: C.surface,
+                  boxShadow: "3px 3px 8px rgba(0,0,0,0.07), -2px -2px 6px rgba(255,255,255,0.80)",
+                }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 500, color: C.ink, marginBottom: 4 }}>All customers on track</p>
+                  <p style={{ fontSize: 12.5, color: C.ink3 }}>No immediate actions required as of {portfolio.assessmentDate}.</p>
+                </div>
+              )}
             </div>
 
-            {/* Recent transactions */}
+            {/* Open invoices table */}
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em" }}>Recent transactions</p>
+                <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em" }}>Open invoices</p>
                 <div style={{ display: "flex", gap: 8 }}>
                   <Btn variant="secondary" size="sm" icon={<Ic.Filter />}>Filter</Btn>
                   <Btn variant="ghost" size="sm">Export</Btn>
                 </div>
               </div>
-              <div className="hide-mobile"><DataTable /></div>
-              <div className="show-mobile"><MobileTransactions /></div>
+              <div className="hide-mobile"><DataTable rankings={rankings} /></div>
+              <div className="show-mobile"><MobileTransactions rankings={rankings} /></div>
             </div>
           </div>
 
           {/* Right: Supporting info */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="right-col">
 
-            {/* Revenue trend */}
+            {/* Revenue trend — static */}
             <div className="s-card" style={{ backgroundColor: C.surface, borderRadius: 14, padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em" }}>Revenue — 12 months</p>
@@ -643,29 +745,22 @@ function OverviewScreen() {
               <RevenueBar />
             </div>
 
-            {/* Collection risk */}
+            {/* Collection risk — live: backend totalRiskScore */}
             <div className="s-card" style={{ backgroundColor: C.surface, borderRadius: 14, padding: 20 }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 16 }}>Collection risk</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {[
-                  {label:"Mehta Traders", v:78},
-                  {label:"Singh & Co",    v:52},
-                  {label:"Kapoor Textiles",v:45},
-                  {label:"Gupta Electronics",v:22},
-                  {label:"Sharma Pharma", v:14},
-                ].map((r) => {
-                  const color = r.v >= 70 ? C.rose : r.v >= 40 ? C.gold : C.sage;
+                {rankings.map((r) => {
+                  const score = r.risk.totalRiskScore;
+                  const color = score >= 70 ? C.rose : score >= 40 ? C.gold : C.sage;
                   return (
-                    <div key={r.label}>
+                    <div key={r.customerId}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                        <span style={{ fontSize: 12, color: C.ink2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: 8 }}>{r.label}</span>
-                        <span style={{ fontSize: 11.5, fontFamily: "DM Mono, monospace", fontWeight: 600, color, flexShrink: 0 }}>{r.v}</span>
+                        <span style={{ fontSize: 12, color: C.ink2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: 8 }}>{r.customerName}</span>
+                        <span style={{ fontSize: 11.5, fontFamily: "DM Mono, monospace", fontWeight: 600, color, flexShrink: 0 }}>{score}</span>
                       </div>
-                      <div style={{
-                        height: 4, borderRadius: 2, backgroundColor: "rgba(28,37,53,0.08)",
-                        boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.06), inset -1px -1px 1px rgba(255,255,255,0.70)",
-                      }}>
-                        <div style={{ height: 4, borderRadius: 2, width: `${r.v}%`, backgroundColor: color, transition: "width 0.7s cubic-bezier(0.4,0,0.2,1)" }} />
+                      <div style={{ height: 4, borderRadius: 2, backgroundColor: "rgba(28,37,53,0.08)",
+                        boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.06), inset -1px -1px 1px rgba(255,255,255,0.70)" }}>
+                        <div style={{ height: 4, borderRadius: 2, width: `${score}%`, backgroundColor: color, transition: "width 0.7s cubic-bezier(0.4,0,0.2,1)" }} />
                       </div>
                     </div>
                   );
@@ -673,15 +768,19 @@ function OverviewScreen() {
               </div>
             </div>
 
-            {/* Business status — simple */}
+            {/* Business status */}
             <div className="s-card" style={{ backgroundColor: C.surface, borderRadius: 14, padding: 20 }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>Business status</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {[
-                  { label:"Sales this month",   value:"₹12.6L",   note:"+8.4%", color: C.sage },
-                  { label:"Overdue receivables", value:"₹2.8L",    note:"+18%",  color: C.rose },
-                  { label:"Customers (active)",  value:"142",       note:"8 new", color: C.ink3 },
-                  { label:"Avg collection (days)",value:"34",       note:"+3d",   color: C.gold },
+                  // Static: no M2 revenue endpoint
+                  { label: "Sales this month",     value: "\u20b918.7L",  note: "+8.4%", color: C.sage },
+                  // Live: overdue paise from portfolio
+                  { label: "Overdue receivables",  value: paiseLakhs(totalPortfolioOverduePaise), note: highRiskCount > 0 ? `${highRiskCount} high-risk` : "None critical", color: totalPortfolioOverduePaise > 0 ? C.rose : C.sage },
+                  // Live: customer count
+                  { label: "Customers (active)",   value: String(portfolio.customersCount), note: `${highRiskCount} at risk`, color: C.ink3 },
+                  // Static: no M2 DSO endpoint
+                  { label: "Avg collection (days)", value: "—", note: "No M2 endpoint", color: C.ink3 },
                 ].map((row) => (
                   <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                     <span style={{ fontSize: 12.5, color: C.ink2, minWidth: 0 }}>{row.label}</span>
@@ -695,15 +794,19 @@ function OverviewScreen() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
 }
 
-// ─── Other screens ────────────────────────────────────────────────────────────
+// ─── Receivables screen ───────────────────────────────────────────────────────
 
-function ReceivablesScreen() {
+function ReceivablesScreen({ portfolio }: { portfolio: ApiPortfolioAssessment }) {
+  const { rankings, totalPortfolioOutstandingPaise, totalPortfolioOverduePaise } = portfolio;
+  const allInvoices = rankings.flatMap((r) => r.openInvoices);
+  const dueThisWeek = allInvoices.filter((inv) => inv.daysUntilDue >= 0 && inv.daysUntilDue <= 7);
+  const dueThisWeekPaise = dueThisWeek.reduce((s, inv) => s + inv.outstandingBalancePaise, 0);
+
   return (
     <div style={{ flex: 1, overflowY: "auto", backgroundColor: C.bg }}>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 24 }}>
@@ -712,26 +815,25 @@ function ReceivablesScreen() {
           <p style={{ fontSize: 13.5, color: C.ink2 }}>Outstanding invoices and collection status</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }} className="md-4-col">
-          <KPICard label="Total outstanding" value="₹14.3L" sub="38 invoices" />
-          <KPICard label="Overdue ≥30 days" value="₹6.2L" delta="+₹1.1L this week" kind="risk" />
-          <KPICard label="Due this week" value="₹3.8L" sub="12 invoices" kind="attention" />
-          <KPICard label="Collected — Aug" value="₹11.4L" delta="+8.2% vs July" kind="healthy" />
+          <KPICard label="Total outstanding" value={paiseLakhs(totalPortfolioOutstandingPaise)} sub={`${allInvoices.length} open invoices`} />
+          <KPICard label="Overdue ≥1 day" value={paiseLakhs(totalPortfolioOverduePaise)} kind={totalPortfolioOverduePaise > 0 ? "risk" : "healthy"} />
+          <KPICard label="Due this week" value={paiseLakhs(dueThisWeekPaise)} sub={`${dueThisWeek.length} invoices`} kind="attention" />
+          {/* Collected Aug: no M2 payment-history endpoint */}
+          <KPICard label="Collected — Aug" value="—" sub="No payment history endpoint" kind="neutral" />
         </div>
-        <div className="hide-mobile"><DataTable /></div>
-        <div className="show-mobile"><MobileTransactions /></div>
+        <div className="hide-mobile"><DataTable rankings={rankings} /></div>
+        <div className="show-mobile"><MobileTransactions rankings={rankings} /></div>
       </div>
     </div>
   );
 }
 
-function CustomersScreen() {
-  const list = [
-    { name:"Mehta Traders",    region:"North", ltv:"₹8.2L", risk:78, kind:"risk" as Pill },
-    { name:"Patel Electronics",region:"West",  ltv:"₹6.1L", risk:22, kind:"healthy" as Pill },
-    { name:"Singh & Co",       region:"South", ltv:"₹4.8L", risk:52, kind:"attention" as Pill },
-    { name:"Gupta & Sons",     region:"East",  ltv:"₹3.9L", risk:15, kind:"healthy" as Pill },
-    { name:"Kapoor Textiles",  region:"West",  ltv:"₹3.2L", risk:45, kind:"attention" as Pill },
-  ];
+// ─── Customers screen ─────────────────────────────────────────────────────────
+
+function CustomersScreen({ portfolio }: { portfolio: ApiPortfolioAssessment }) {
+  const { rankings, customersCount, highRiskCount, totalPortfolioLTVPaise } = portfolio;
+  const avgLTV = customersCount > 0 ? Math.round(totalPortfolioLTVPaise / customersCount) : 0;
+
   return (
     <div style={{ flex: 1, overflowY: "auto", backgroundColor: C.bg }}>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 24 }}>
@@ -740,36 +842,40 @@ function CustomersScreen() {
           <p style={{ fontSize: 13.5, color: C.ink2 }}>Health, lifetime value, and collection risk</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }} className="md-4-col">
-          <KPICard label="Total customers" value="142" sub="6 regions" />
-          <KPICard label="At risk" value="8" sub="Overdue 45+ days" kind="risk" />
-          <KPICard label="Repeat rate" value="71%" delta="+3% vs last quarter" kind="healthy" />
-          <KPICard label="Avg LTV" value="₹3.4L" delta="+12% vs last year" kind="healthy" />
+          <KPICard label="Total customers" value={String(customersCount)} sub={`${portfolio.mediumRiskCount + highRiskCount} require attention`} />
+          <KPICard label="High risk" value={String(highRiskCount)} sub="Risk score ≥70" kind={highRiskCount > 0 ? "risk" : "healthy"} />
+          {/* Repeat rate: no M2 equivalent */}
+          <KPICard label="Repeat rate" value="—" sub="No purchase history endpoint" kind="neutral" />
+          {/* Avg LTV: derived from portfolio totals (presentation only, no financial calculation) */}
+          <KPICard label="Avg LTV" value={paiseLakhs(avgLTV)} kind="healthy" />
         </div>
         <div className="s-card" style={{ backgroundColor: C.surface, borderRadius: 14, overflow: "hidden" }}>
-          {list.map((c, i) => {
-            const color = c.risk >= 70 ? C.rose : c.risk >= 40 ? C.gold : C.sage;
+          {rankings.map((r, i) => {
+            const score = r.risk.totalRiskScore;
+            const color = score >= 70 ? C.rose : score >= 40 ? C.gold : C.sage;
+            const kind = riskKind(score);
             return (
-              <div key={c.name} style={{
+              <div key={r.customerId} style={{
                 display: "flex", alignItems: "center", gap: 14, padding: "13px 20px",
-                borderBottom: i < list.length - 1 ? `1px solid ${C.border}` : undefined,
+                borderBottom: i < rankings.length - 1 ? `1px solid ${C.border}` : undefined,
               }}>
                 <div style={{
                   width: 32, height: 32, borderRadius: 9, backgroundColor: C.orangeFaint,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 12, fontWeight: 700, color: C.orange, flexShrink: 0,
                   boxShadow: "2px 2px 5px rgba(0,0,0,0.07), -1px -1px 3px rgba(255,255,255,0.80)",
-                }}>{c.name[0]}</div>
+                }}>{r.customerName[0]}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13.5, fontWeight: 500, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</p>
-                  <p style={{ fontSize: 11.5, color: C.ink3 }}>{c.region}</p>
+                  <p style={{ fontSize: 13.5, fontWeight: 500, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.customerName}</p>
+                  <p style={{ fontSize: 11.5, color: C.ink3 }}>Rank #{r.priority.priorityRank ?? i + 1}</p>
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: C.ink, fontFamily: "DM Mono, monospace", flexShrink: 0 }}>{c.ltv}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.ink, fontFamily: "DM Mono, monospace", flexShrink: 0 }}>{paiseLakhs(r.signals.customerLTVPaise)}</span>
                 <div style={{ width: 72, flexShrink: 0 }} className="hidden-xs">
                   <div style={{ height: 3, borderRadius: 2, backgroundColor: "rgba(28,37,53,0.08)", overflow: "hidden" }}>
-                    <div style={{ height: 3, borderRadius: 2, width: `${c.risk}%`, backgroundColor: color }} />
+                    <div style={{ height: 3, borderRadius: 2, width: `${score}%`, backgroundColor: color }} />
                   </div>
                 </div>
-                <StatusPill kind={c.kind}>{c.kind === "healthy" ? "Healthy" : c.kind === "attention" ? "Watch" : "At risk"}</StatusPill>
+                <StatusPill kind={kind}>{kind === "healthy" ? "Healthy" : kind === "attention" ? "Watch" : "At risk"}</StatusPill>
               </div>
             );
           })}
@@ -778,6 +884,10 @@ function CustomersScreen() {
     </div>
   );
 }
+
+// ─── Insights screen — intentionally static ───────────────────────────────────
+// Regional analysis, purchase-cycle prediction, and revenue forecasting have
+// no Milestone 2 backend equivalent. These values match the seeded data.
 
 function InsightsScreen() {
   return (
@@ -788,10 +898,10 @@ function InsightsScreen() {
           <p style={{ fontSize: 13.5, color: C.ink2 }}>Revenue trends, regional performance, and forecasts</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }} className="md-4-col">
-          <KPICard label="Aug revenue" value="₹18.7L" delta="+11.4% vs July" kind="healthy" />
+          <KPICard label="Aug revenue" value="\u20b918.7L" delta="+11.4% vs July" kind="healthy" />
           <KPICard label="New orders" value="63" delta="+7 vs last month" kind="healthy" />
-          <KPICard label="Avg order value" value="₹29,700" delta="+4.2% vs July" kind="healthy" />
-          <KPICard label="North region" value="₹4.1L" sub="Recovering · 6% above target" kind="attention" />
+          <KPICard label="Avg order value" value="\u20b929,700" delta="+4.2% vs July" kind="healthy" />
+          <KPICard label="North region" value="\u20b94.1L" sub="Recovering · 6% above target" kind="attention" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }} className="lg-2col">
           <div className="s-card" style={{ backgroundColor: C.surface, borderRadius: 14, padding: 20 }}>
@@ -834,73 +944,111 @@ function PlaceholderScreen({ title, sub }: { title: string; sub: string }) {
   );
 }
 
+// ─── Loading screen ───────────────────────────────────────────────────────────
+
+function LoadingScreen() {
+  return (
+    <div style={{ flex: 1, overflowY: "auto", backgroundColor: C.bg }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 32 }}>
+        <div>
+          <Skeleton w={240} h={22} />
+          <div style={{ marginTop: 8 }}><Skeleton w={300} h={14} /></div>
+        </div>
+        <div>
+          <div style={{ marginBottom: 14 }}><Skeleton w={80} h={11} /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }} className="md-4-col">
+            {[0,1,2,3].map((i) => <KPICardSkeleton key={i} />)}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[0,1].map((i) => (
+            <div key={i} style={{ backgroundColor: C.surface, borderRadius: 14, padding: "24px 20px",
+              boxShadow: "3px 3px 8px rgba(0,0,0,0.07), -2px -2px 6px rgba(255,255,255,0.80)" }}>
+              <Skeleton w="60%" h={14} />
+              <div style={{ marginTop: 10 }}><Skeleton w="40%" h={12} /></div>
+              <div style={{ marginTop: 8 }}><Skeleton w="80%" h={12} /></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── App shell ────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [nav, setNav] = useState("overview");
   const [open, setOpen] = useState(false);
+  const portfolioState = usePortfolio();
 
-  const screens: Record<string, { title: string; content: React.ReactNode }> = {
-    overview:    { title: "Good morning, Rajan",  content: <OverviewScreen /> },
-    receivables: { title: "Receivables",           content: <ReceivablesScreen /> },
-    customers:   { title: "Customers",             content: <CustomersScreen /> },
-    insights:    { title: "Insights",              content: <InsightsScreen /> },
-    datasources: { title: "Data sources",          content: <PlaceholderScreen title="Data sources" sub="Connect your accounting software, bank feeds, and sales data." /> },
-    settings:    { title: "Settings",              content: <PlaceholderScreen title="Settings" sub="Account preferences, notifications, and team management." /> },
+  const highRiskCount = portfolioState.status === "success"
+    ? portfolioState.data.highRiskCount
+    : 0;
+
+  const SCREEN_TITLES: Record<string, string> = {
+    overview:    "Good morning, Rajan",
+    receivables: "Receivables",
+    customers:   "Customers",
+    insights:    "Insights",
+    datasources: "Data sources",
+    settings:    "Settings",
   };
 
-  const s = screens[nav] || screens.overview;
+  function renderContent(): React.ReactNode {
+    // Loading / idle
+    if (portfolioState.status === "idle" || portfolioState.status === "loading") {
+      return <LoadingScreen />;
+    }
+
+    // Error — show banner instead of fake data on intelligence-driven screens
+    if (portfolioState.status === "error") {
+      if (["overview", "receivables", "customers"].includes(nav)) {
+        return (
+          <div style={{ flex: 1, overflowY: "auto", backgroundColor: C.bg }}>
+            <div style={{ maxWidth: 960, margin: "0 auto", padding: "28px 24px" }}>
+              <ErrorBanner message={portfolioState.message} />
+            </div>
+          </div>
+        );
+      }
+    }
+
+    const portfolio = portfolioState.status === "success" ? portfolioState.data : null;
+
+    switch (nav) {
+      case "overview":    return portfolio ? <OverviewScreen portfolio={portfolio} />    : null;
+      case "receivables": return portfolio ? <ReceivablesScreen portfolio={portfolio} /> : null;
+      case "customers":   return portfolio ? <CustomersScreen portfolio={portfolio} />   : null;
+      case "insights":    return <InsightsScreen />;
+      case "datasources": return <PlaceholderScreen title="Data sources" sub="Connect your accounting software, bank feeds, and sales data." />;
+      case "settings":    return <PlaceholderScreen title="Settings" sub="Account preferences, notifications, and team management." />;
+      default:            return portfolio ? <OverviewScreen portfolio={portfolio} /> : null;
+    }
+  }
 
   return (
     <div style={{ display: "flex", height: "100%", overflow: "hidden", backgroundColor: C.bg }}>
       <style>{`
         .tabular-nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
-        @keyframes spin  { to { transform: rotate(360deg); } }
-        @keyframes rise  {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes spin    { to { transform: rotate(360deg); } }
+        @keyframes rise    { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .rise-1 { animation: rise 0.38s cubic-bezier(0.22,1,0.36,1) 0.06s both; }
         .rise-2 { animation: rise 0.38s cubic-bezier(0.22,1,0.36,1) 0.14s both; }
         .rise-3 { animation: rise 0.38s cubic-bezier(0.22,1,0.36,1) 0.22s both; }
-
-        /* Responsive helpers */
-        @media (min-width: 640px) {
-          .md-4-col { grid-template-columns: repeat(4, 1fr) !important; }
-        }
-        @media (min-width: 1024px) {
-          .lg-3col { grid-template-columns: 1fr 1fr 300px !important; }
-          .lg-2col { grid-template-columns: 1fr 1fr !important; }
-          .col-span-2 { grid-column: span 2; }
-          .right-col { grid-column: span 1; }
-        }
-        @media (max-width: 1023px) {
-          .col-span-2, .right-col { grid-column: span 1; }
-        }
-        @media (min-width: 480px) {
-          .hidden-xs { display: block !important; }
-        }
-        @media (max-width: 479px) {
-          .hidden-xs { display: none !important; }
-        }
-        .hide-mobile  { display: block; }
-        .show-mobile  { display: none; }
-        @media (max-width: 639px) {
-          .hide-mobile { display: none; }
-          .show-mobile { display: block; }
-        }
-
-        /* Button press */
-        .s-btn-press:active {
-          box-shadow: inset 2px 2px 4px rgba(0,0,0,0.10), inset -1px -1px 2px rgba(255,255,255,0.60) !important;
-          transform: translateY(0) !important;
-        }
-
-input::placeholder { color: #96A3B4; }
+        @media (min-width: 640px)  { .md-4-col  { grid-template-columns: repeat(4, 1fr) !important; } }
+        @media (min-width: 1024px) { .lg-3col { grid-template-columns: 1fr 1fr 300px !important; } .lg-2col { grid-template-columns: 1fr 1fr !important; } .col-span-2 { grid-column: span 2; } .right-col { grid-column: span 1; } }
+        @media (max-width: 1023px) { .col-span-2, .right-col { grid-column: span 1; } }
+        @media (min-width: 480px)  { .hidden-xs { display: block !important; } }
+        @media (max-width: 479px)  { .hidden-xs { display: none !important; } }
+        .hide-mobile { display: block; } .show-mobile { display: none; }
+        @media (max-width: 639px)  { .hide-mobile { display: none; } .show-mobile { display: block; } }
+        .s-btn-press:active { box-shadow: inset 2px 2px 4px rgba(0,0,0,0.10), inset -1px -1px 2px rgba(255,255,255,0.60) !important; transform: translateY(0) !important; }
+        input::placeholder { color: #96A3B4; }
         * { box-sizing: border-box; }
       `}</style>
 
-      {/* Backdrop */}
       {open && (
         <div onClick={() => setOpen(false)} style={{
           position: "fixed", inset: 0, zIndex: 40,
@@ -908,23 +1056,24 @@ input::placeholder { color: #96A3B4; }
         }} />
       )}
 
-      {/* Single sidebar — always a slide-in drawer */}
       <div style={{
-        position: "fixed", top: 0, left: 0, bottom: 0,
-        width: 220, zIndex: 50,
+        position: "fixed", top: 0, left: 0, bottom: 0, width: 220, zIndex: 50,
         borderRight: `1px solid ${C.border}`,
         boxShadow: "4px 0 16px rgba(0,0,0,0.08)",
         backgroundColor: C.bg,
         transform: open ? "translateX(0)" : "translateX(-100%)",
         transition: "transform 0.25s ease",
       }}>
-        <Sidebar active={nav} onChange={(id) => { setNav(id); setOpen(false); }} />
+        <Sidebar
+          active={nav}
+          onChange={(id) => { setNav(id); setOpen(false); }}
+          highRiskCount={highRiskCount}
+        />
       </div>
 
-      {/* Main */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-        <TopBar title={s.title} onMenuClick={() => setOpen(o => !o)} />
-        {s.content}
+        <TopBar title={SCREEN_TITLES[nav] ?? "OpsMitra"} onMenuClick={() => setOpen((o) => !o)} />
+        {renderContent()}
       </div>
     </div>
   );
