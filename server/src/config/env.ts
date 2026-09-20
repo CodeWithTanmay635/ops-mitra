@@ -27,6 +27,10 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
+
+  // Optional AI provider API keys
+  GEMINI_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
 });
 
 // parse() throws a ZodError with a clear message if anything is missing/wrong.

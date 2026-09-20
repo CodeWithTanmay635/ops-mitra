@@ -202,14 +202,75 @@ export class ApiError extends Error {
   }
 }
 
-// ─── Internal Fetch Helper ────────────────────────────────────────────────────
+// ─── Milestone 4 Domain Interfaces ──────────────────────────────────────────
+
+export interface ApiStructuredEvidence {
+  customerId: number;
+  customerName: string;
+  assessmentDate: string;
+  financials: {
+    outstandingPaise: number;
+    overdueExposurePaise: number;
+    overdueExposureRatioPercent: number;
+  };
+  signals: {
+    maxOverdueDays: number;
+    openCycleDays: number;
+    historicalBaselinePaymentDays: number | null;
+    openCycleDriftDays: number;
+    revenueConcentrationRatioPercent: number;
+    openInvoicesCount: number;
+    hasUpcomingInvoiceWithin5Days: boolean;
+  };
+  risk: {
+    score: number;
+    category: RiskCategory;
+    agingSeverityScore: number;
+    openCycleDriftScore: number;
+    overdueExposureScore: number;
+  };
+  priority: {
+    score: number;
+    rank?: number;
+  };
+  recommendation: {
+    action: RecommendationAction;
+    matchedRule: string;
+    reasonCodes: ReasonCode[];
+  };
+}
+
+export interface ApiExplanationData {
+  evidence: ApiStructuredEvidence;
+  explanation: string;
+  keyPoints: string[];
+  suggestedAction: string;
+}
+
+export interface ApiFollowUpData {
+  evidence: ApiStructuredEvidence;
+  message: string;
+}
+
+export interface ApiSimulationData {
+  customerId: number;
+  customerName: string;
+  recoveryAmountPaise: number;
+  current: ApiStructuredEvidence;
+  simulated: ApiStructuredEvidence;
+  aiExplanation: {
+    explanation: string;
+    keyPoints: string[];
+  };
+}
+
+// ─── Internal Fetch Helpers ───────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`);
   } catch (cause) {
-    // Network-level failure (server down, DNS error, etc.)
     throw new Error(
       `Network error while requesting ${path}. Is the backend running on ${API_BASE}?`,
       { cause },
@@ -217,7 +278,38 @@ async function apiFetch<T>(path: string): Promise<T> {
   }
 
   if (!res.ok) {
-    // Parse and surface the structured backend error body where possible
+    let body: ApiErrorResponse;
+    try {
+      body = (await res.json()) as ApiErrorResponse;
+    } catch {
+      body = {
+        error: "UNKNOWN_ERROR",
+        message: `HTTP ${res.status} ${res.statusText}`,
+      };
+    }
+    throw new ApiError(res.status, body);
+  }
+
+  const json = (await res.json()) as ApiSuccessResponse<T>;
+  return json.data;
+}
+
+async function apiFetchPost<T>(path: string, payload?: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload !== undefined ? JSON.stringify(payload) : undefined,
+    });
+  } catch (cause) {
+    throw new Error(
+      `Network error while requesting ${path}. Is the backend running on ${API_BASE}?`,
+      { cause },
+    );
+  }
+
+  if (!res.ok) {
     let body: ApiErrorResponse;
     try {
       body = (await res.json()) as ApiErrorResponse;
@@ -238,12 +330,6 @@ async function apiFetch<T>(path: string): Promise<T> {
 
 /**
  * Fetches the full portfolio assessment ranked by priority score.
- *
- * @param date - Optional assessment date in YYYY-MM-DD format.
- *               Defaults to "2025-08-26" (backend seed date) when omitted.
- *
- * @throws {ApiError}  When the server returns a non-2xx response.
- * @throws {Error}     When a network failure prevents the request.
  */
 export async function fetchPortfolio(
   date?: string,
@@ -256,13 +342,6 @@ export async function fetchPortfolio(
 
 /**
  * Fetches the full assessment for a single customer by their numeric ID.
- *
- * @param id   - The customer's numeric database ID.
- * @param date - Optional assessment date in YYYY-MM-DD format.
- *
- * @throws {ApiError}  status 404 when the customer ID does not exist.
- * @throws {ApiError}  status 400 when the ID is not a positive integer.
- * @throws {Error}     When a network failure prevents the request.
  */
 export async function fetchCustomer(
   id: number,
@@ -271,5 +350,46 @@ export async function fetchCustomer(
   const params = date ? `?date=${encodeURIComponent(date)}` : "";
   return apiFetch<ApiCustomerAssessment>(
     `/api/v1/intelligence/customers/${id}${params}`,
+  );
+}
+
+/**
+ * Fetches AI explanation and key signals for a customer.
+ */
+export async function fetchCustomerExplanation(
+  id: number,
+  date?: string,
+): Promise<ApiExplanationData> {
+  const params = date ? `?date=${encodeURIComponent(date)}` : "";
+  return apiFetchPost<ApiExplanationData>(
+    `/api/v1/ai/customers/${id}/explanation${params}`,
+  );
+}
+
+/**
+ * Generates draft follow-up payment message for a customer.
+ */
+export async function fetchCustomerFollowUp(
+  id: number,
+  date?: string,
+): Promise<ApiFollowUpData> {
+  const params = date ? `?date=${encodeURIComponent(date)}` : "";
+  return apiFetchPost<ApiFollowUpData>(
+    `/api/v1/ai/customers/${id}/follow-up${params}`,
+  );
+}
+
+/**
+ * Runs a deterministic What-If simulation for a hypothetical recovery payment.
+ */
+export async function simulateCustomerRecovery(
+  id: number,
+  recoveryAmountPaise: number,
+  date?: string,
+): Promise<ApiSimulationData> {
+  const params = date ? `?date=${encodeURIComponent(date)}` : "";
+  return apiFetchPost<ApiSimulationData>(
+    `/api/v1/simulation/customers/${id}${params}`,
+    { recoveryAmountPaise },
   );
 }

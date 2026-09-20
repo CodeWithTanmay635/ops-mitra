@@ -24,6 +24,7 @@ import { env } from "./config/env.js";
 import errorHandler from "./plugins/errorHandler.js";
 import { healthRoutes } from "./routes/health.js";
 import { intelligenceRoutes } from "./routes/intelligence.js";
+import { aiSimulationRoutes } from "./routes/ai-simulation.js";
 
 async function buildApp() {
   const app = Fastify({
@@ -63,14 +64,17 @@ async function buildApp() {
       "http://127.0.0.1:8443",
       "http://localhost:5173",
       "http://127.0.0.1:5173",
+      "http://localhost:5174",
+      "http://127.0.0.1:5174",
     ],
-    methods: ["GET", "OPTIONS"],
+    methods: ["GET", "POST", "OPTIONS"],
     credentials: false,
   });
 
   // ── Routes ───────────────────────────────────────────────────────────────────
   await app.register(healthRoutes);
   await app.register(intelligenceRoutes);
+  await app.register(aiSimulationRoutes);
 
   return app;
 }

@@ -182,7 +182,7 @@ async function seed() {
       customerId: mehta,
       invoiceNumber: "INV-2408",
       issuedAt: "2025-06-26",
-      dueDate: "2025-07-26",
+      dueDate: "2025-07-14",
       totalAmountPaise: rupees(240_000), // ₹2,40,000 (matches insight card)
       paidAmountPaise: rupees(116_000),  // partial payment received
       status: "overdue",

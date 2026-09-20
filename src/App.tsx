@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import {
   fetchPortfolio,
+  fetchCustomerExplanation,
+  fetchCustomerFollowUp,
+  simulateCustomerRecovery,
   ApiError,
   type ApiPortfolioAssessment,
   type ApiCustomerAssessment,
+  type ApiExplanationData,
+  type ApiFollowUpData,
+  type ApiSimulationData,
 } from "./lib/api";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -391,14 +397,334 @@ function KPICardSkeleton() {
   );
 }
 
+// ─── Milestone 4 AI Explanation & What-If Simulation Component ─────────────────
+
+function CustomerIntelligenceAndSimulation({ ranking }: { ranking: ApiCustomerAssessment }) {
+  const [expData, setExpData] = useState<ApiExplanationData | null>(null);
+  const [expLoading, setExpLoading] = useState<boolean>(false);
+  const [expError, setExpError] = useState<string | null>(null);
+
+  const [followUpMsg, setFollowUpMsg] = useState<string | null>(null);
+  const [msgLoading, setMsgLoading] = useState<boolean>(false);
+  const [copied, setCopied] = useState<boolean>(false);
+
+  const [simRupees, setSimRupees] = useState<string>("75000");
+  const [simData, setSimData] = useState<ApiSimulationData | null>(null);
+  const [simLoading, setSimLoading] = useState<boolean>(false);
+  const [simError, setSimError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setExpLoading(true);
+    setExpError(null);
+    fetchCustomerExplanation(ranking.customerId)
+      .then((res) => {
+        if (active) {
+          setExpData(res);
+          setExpLoading(false);
+        }
+      })
+      .catch((err: any) => {
+        if (active) {
+          setExpError(err?.message || "Could not fetch AI explanation");
+          setExpLoading(false);
+        }
+      });
+    return () => { active = false; };
+  }, [ranking.customerId]);
+
+  const handleGenerateFollowUp = () => {
+    setMsgLoading(true);
+    setCopied(false);
+    fetchCustomerFollowUp(ranking.customerId)
+      .then((res) => {
+        setFollowUpMsg(res.message);
+        setMsgLoading(false);
+      })
+      .catch(() => {
+        setMsgLoading(false);
+      });
+  };
+
+  const handleCopyMessage = () => {
+    if (followUpMsg) {
+      navigator.clipboard.writeText(followUpMsg);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleRunSimulation = () => {
+    const val = parseFloat(simRupees);
+    if (isNaN(val) || val < 0) return;
+    setSimLoading(true);
+    setSimError(null);
+    simulateCustomerRecovery(ranking.customerId, Math.round(val * 100))
+      .then((res) => {
+        setSimData(res);
+        setSimLoading(false);
+      })
+      .catch((err: any) => {
+        setSimError(err?.message || "Simulation failed");
+        setSimLoading(false);
+      });
+  };
+
+  const actionMap: Record<string, string> = {
+    ESCALATE_IMMEDIATELY: "Escalate immediately",
+    SEND_FORMAL_REMINDER: "Send formal reminder",
+    PROACTIVE_CHECKIN: "Schedule proactive check-in",
+    SCHEDULE_COURTESY_REMINDER: "Schedule courtesy reminder",
+    MONITOR: "Monitor — no immediate action",
+  };
+
+  return (
+    <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* ── PART 2: AI EXPLANATION ── */}
+      <div style={{
+        padding: "14px 16px", borderRadius: 10, backgroundColor: C.surfaceAlt,
+        border: `1px solid ${C.border}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Why this matters
+          </p>
+          <span style={{ fontSize: 10, fontWeight: 600, color: C.orange, fontFamily: "DM Mono, monospace", backgroundColor: C.orangeFaint, padding: "2px 8px", borderRadius: 10 }}>
+            AI Explanation
+          </span>
+        </div>
+
+        {expLoading ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: C.ink3, fontSize: 12 }}>
+            <Ic.Spin /> Generating evidence-based AI explanation...
+          </div>
+        ) : expError ? (
+          <p style={{ fontSize: 12, color: C.rose }}>{expError}</p>
+        ) : expData ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.5, margin: 0, fontWeight: 450 }}>
+              {expData.explanation}
+            </p>
+
+            {/* Key Signals */}
+            <div>
+              <p style={{ fontSize: 10.5, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                Key signals
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {ranking.signals.maxOverdueDays > 0 && (
+                  <span style={{ fontSize: 11.5, padding: "3px 8px", borderRadius: 6, backgroundColor: C.roseFaint, color: C.rose, fontWeight: 600 }}>
+                    {ranking.signals.maxOverdueDays} days overdue
+                  </span>
+                )}
+                <span style={{ fontSize: 11.5, padding: "3px 8px", borderRadius: 6, backgroundColor: "rgba(28,37,53,0.06)", color: C.ink, fontWeight: 600, fontFamily: "DM Mono, monospace" }}>
+                  {paiseRupees(ranking.signals.outstandingExposurePaise)} outstanding
+                </span>
+                {ranking.signals.openCycleDays > 0 && (
+                  <span style={{ fontSize: 11.5, padding: "3px 8px", borderRadius: 6, backgroundColor: C.goldFaint, color: C.gold, fontWeight: 600 }}>
+                    {ranking.signals.openCycleDays}-day open cycle
+                  </span>
+                )}
+                {ranking.signals.historicalBaselinePaymentDays !== null && (
+                  <span style={{ fontSize: 11.5, padding: "3px 8px", borderRadius: 6, backgroundColor: C.sageFaint, color: C.sage, fontWeight: 600 }}>
+                    {Math.round(ranking.signals.historicalBaselinePaymentDays)}-day historical baseline
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Suggested Action & Draft Follow-up */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4, flexWrap: "wrap", gap: 8 }}>
+              <div>
+                <p style={{ fontSize: 10.5, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>
+                  Suggested action
+                </p>
+                <p style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>
+                  {actionMap[expData.suggestedAction] ?? expData.suggestedAction}
+                </p>
+              </div>
+
+              {!followUpMsg && (
+                <button
+                  onClick={handleGenerateFollowUp}
+                  disabled={msgLoading}
+                  style={{
+                    backgroundColor: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
+                    padding: "5px 10px", fontSize: 11.5, fontWeight: 600, color: C.ink, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 5, fontFamily: "inherit",
+                    boxShadow: "1px 1px 3px rgba(0,0,0,0.05)",
+                  }}>
+                  {msgLoading ? <Ic.Spin /> : <Ic.Bell />}
+                  Draft follow-up
+                </button>
+              )}
+            </div>
+
+            {/* Follow-up message text */}
+            {followUpMsg && (
+              <div style={{
+                marginTop: 6, padding: "10px 12px", borderRadius: 8, backgroundColor: C.surface,
+                border: `1px dashed ${C.orange}`, position: "relative",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: C.orange, textTransform: "uppercase" }}>Draft follow-up message</span>
+                  <button
+                    onClick={handleCopyMessage}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      fontSize: 11, fontWeight: 600, color: copied ? C.sage : C.ink3, fontFamily: "inherit",
+                    }}>
+                    {copied ? "✓ Copied!" : "Copy message"}
+                  </button>
+                </div>
+                <p style={{ fontSize: 12, color: C.ink, fontStyle: "italic", lineHeight: 1.4, margin: 0 }}>
+                  "{followUpMsg}"
+                </p>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── PART 4 & 5: WHAT-IF SIMULATION ── */}
+      <div style={{
+        padding: "14px 16px", borderRadius: 10, backgroundColor: C.surfaceAlt,
+        border: `1px solid ${C.border}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            What if this customer pays...
+          </p>
+          <span style={{ fontSize: 10, fontWeight: 600, color: C.sage, fontFamily: "DM Mono, monospace", backgroundColor: C.sageFaint, padding: "2px 8px", borderRadius: 10 }}>
+            Simulation
+          </span>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, fontWeight: 600, color: C.ink3 }}>
+              ₹
+            </span>
+            <input
+              type="number"
+              value={simRupees}
+              onChange={(e) => setSimRupees(e.target.value)}
+              placeholder="Recovery amount"
+              style={{
+                width: "100%", padding: "6px 10px 6px 24px", borderRadius: 6,
+                border: `1px solid ${C.border}`, backgroundColor: C.surface,
+                fontSize: 13, fontFamily: "DM Mono, monospace", fontWeight: 600, color: C.ink,
+                outline: "none",
+              }}
+            />
+          </div>
+          <button
+            onClick={handleRunSimulation}
+            disabled={simLoading}
+            style={{
+              backgroundColor: C.orange, color: "#FFF", border: "none", borderRadius: 6,
+              padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 5, fontFamily: "inherit",
+              boxShadow: "0 2px 4px rgba(196,120,64,0.25)", flexShrink: 0,
+            }}>
+            {simLoading ? <Ic.Spin /> : <Ic.Sliders />}
+            Simulate
+          </button>
+        </div>
+
+        {simError && (
+          <p style={{ fontSize: 12, color: C.rose, marginTop: 4 }}>{simError}</p>
+        )}
+
+        {/* Simulation Output */}
+        {simData && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{
+              borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}`,
+              backgroundColor: C.surface,
+            }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+                <thead>
+                  <tr style={{ backgroundColor: "rgba(28,37,53,0.04)" }}>
+                    <th style={{ padding: "6px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, color: C.ink3, textTransform: "uppercase" }}>Metric</th>
+                    <th style={{ padding: "6px 10px", textAlign: "right", fontSize: 10, fontWeight: 700, color: C.ink3, textTransform: "uppercase" }}>Current</th>
+                    <th style={{ padding: "6px 10px", textAlign: "center", fontSize: 10, fontWeight: 700, color: C.ink3 }}>→</th>
+                    <th style={{ padding: "6px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, color: C.sage, textTransform: "uppercase" }}>Simulated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "6px 10px", fontWeight: 600, color: C.ink2 }}>Outstanding</td>
+                    <td style={{ padding: "6px 10px", textAlign: "right", fontFamily: "DM Mono, monospace", fontWeight: 600, color: C.ink }}>
+                      {paiseRupees(simData.current.financials.outstandingPaise)}
+                    </td>
+                    <td style={{ padding: "6px 10px", textAlign: "center", color: C.ink3 }}>→</td>
+                    <td style={{ padding: "6px 10px", fontFamily: "DM Mono, monospace", fontWeight: 700, color: C.sage }}>
+                      {paiseRupees(simData.simulated.financials.outstandingPaise)}
+                    </td>
+                  </tr>
+
+                  <tr style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "6px 10px", fontWeight: 600, color: C.ink2 }}>Risk Score</td>
+                    <td style={{ padding: "6px 10px", textAlign: "right", fontFamily: "DM Mono, monospace", fontWeight: 600, color: simData.current.risk.score >= 70 ? C.rose : C.gold }}>
+                      {simData.current.risk.score} ({simData.current.risk.category})
+                    </td>
+                    <td style={{ padding: "6px 10px", textAlign: "center", color: C.ink3 }}>→</td>
+                    <td style={{ padding: "6px 10px", fontFamily: "DM Mono, monospace", fontWeight: 700, color: simData.simulated.risk.score < simData.current.risk.score ? C.sage : C.ink }}>
+                      {simData.simulated.risk.score} ({simData.simulated.risk.category})
+                    </td>
+                  </tr>
+
+                  <tr style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "6px 10px", fontWeight: 600, color: C.ink2 }}>Priority Score</td>
+                    <td style={{ padding: "6px 10px", textAlign: "right", fontFamily: "DM Mono, monospace", fontWeight: 600, color: C.ink }}>
+                      {simData.current.priority.score}
+                    </td>
+                    <td style={{ padding: "6px 10px", textAlign: "center", color: C.ink3 }}>→</td>
+                    <td style={{ padding: "6px 10px", fontFamily: "DM Mono, monospace", fontWeight: 700, color: C.sage }}>
+                      {simData.simulated.priority.score}
+                    </td>
+                  </tr>
+
+                  <tr style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "6px 10px", fontWeight: 600, color: C.ink2 }}>Recommendation</td>
+                    <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: 500, color: C.ink }}>
+                      {actionMap[simData.current.recommendation.action] ?? simData.current.recommendation.action}
+                    </td>
+                    <td style={{ padding: "6px 10px", textAlign: "center", color: C.ink3 }}>→</td>
+                    <td style={{ padding: "6px 10px", fontWeight: 700, color: C.sage }}>
+                      {actionMap[simData.simulated.recommendation.action] ?? simData.simulated.recommendation.action}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {simData.aiExplanation && (
+              <div style={{
+                padding: "8px 10px", borderRadius: 6, backgroundColor: C.surface,
+                borderLeft: `3px solid ${C.sage}`,
+              }}>
+                <p style={{ fontSize: 10.5, fontWeight: 700, color: C.sage, textTransform: "uppercase", marginBottom: 3 }}>
+                  Simulation Business Impact
+                </p>
+                <p style={{ fontSize: 12, color: C.ink, lineHeight: 1.4, margin: 0 }}>
+                  {simData.aiExplanation.explanation}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Insight card (driven by API ranking) ─────────────────────────────────────
 
 function InsightCard({ ranking, index }: { ranking: ApiCustomerAssessment; index: number }) {
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const [bodyH, setBodyH] = useState(0);
-  useEffect(() => { if (bodyRef.current) setBodyH(bodyRef.current.scrollHeight); }, [expanded]);
 
   const { signals, risk, recommendation, openInvoices } = ranking;
   const kind = riskKind(risk.totalRiskScore);
@@ -486,16 +812,14 @@ function InsightCard({ ranking, index }: { ranking: ApiCustomerAssessment; index
               <span style={{ transition: "transform 0.3s ease", transform: expanded ? "rotate(90deg)" : "rotate(0deg)", display: "inline-flex" }}>
                 <Ic.ChevRight />
               </span>
-              {expanded ? "Hide details" : "View details"}
+              {expanded ? "Hide details" : "View details & AI"}
             </button>
           </div>
-          <div style={{
-            maxHeight: expanded ? bodyH + 16 : 0, opacity: expanded ? 1 : 0,
-            overflow: "hidden", transition: "max-height 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.28s ease",
-          }}>
-            <div ref={bodyRef}>
+
+          {expanded && (
+            <div>
               <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 10, backgroundColor: kindFaint }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Details</p>
+                <p style={{ fontSize: 11, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Deterministic Signals</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {evidence.map((e, i) => (
                     <div key={i} style={{ display: "flex", gap: 12 }}>
@@ -505,8 +829,11 @@ function InsightCard({ ranking, index }: { ranking: ApiCustomerAssessment; index
                   ))}
                 </div>
               </div>
+
+              {/* Milestone 4 AI Explanation & What-If Simulation */}
+              <CustomerIntelligenceAndSimulation ranking={ranking} />
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
