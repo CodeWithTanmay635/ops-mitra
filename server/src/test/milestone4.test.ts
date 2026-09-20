@@ -52,8 +52,8 @@ async function runTests() {
     assert(evidence.financials.overdueExposurePaise === 12400000, "Evidence overdueExposurePaise = 12,400,000");
     assert(evidence.signals.maxOverdueDays === 43, "Evidence maxOverdueDays = 43");
     assert(evidence.signals.openCycleDays === 61, "Evidence openCycleDays = 61");
-    assert(evidence.signals.historicalBaselinePaymentDays === 33, "Evidence baseline payment days = 33 (from DB seed)");
-    assert(evidence.signals.openCycleDriftDays === 28, "Evidence openCycleDriftDays = 28 (61 - 33)");
+    assert(evidence.signals.historicalBaselinePaymentDays === 18, "Evidence baseline payment days = 18 (from DB seed)");
+    assert(evidence.signals.openCycleDriftDays === 43, "Evidence openCycleDriftDays = 43 (61 - 18)");
     assert(evidence.risk.score === 95, "Evidence risk score = 95");
     assert(evidence.risk.category === "HIGH", "Evidence risk category = HIGH");
     assert(evidence.priority.score === 72, "Evidence priority score = 72");
@@ -180,6 +180,34 @@ async function runTests() {
   assert(jsonSim.data.simulated.risk.score === 0, "Simulation API simulated risk score = 0");
   assert(typeof jsonSim.data.aiExplanation.explanation === "string", "Simulation API returned AI explanation");
 
+  // ─── 6. Edge Case & Safety Tests ──────────────────────────────────────────
+  console.log("\n--- 6. Edge Cases & Safety Verification ---");
+
+  // Zero recovery
+  const zeroSim = await simulationService.simulateRecovery({ customerId: mehtaId, recoveryAmountPaise: 0 });
+  assert(zeroSim?.simulated.financials.outstandingPaise === 12400000, "₹0 recovery leaves outstanding balance unchanged");
+
+  // Recovery greater than outstanding
+  const overSim = await simulationService.simulateRecovery({ customerId: mehtaId, recoveryAmountPaise: 20000000 });
+  assert(overSim?.simulated.financials.outstandingPaise === 0, "Recovery > outstanding caps simulated balance at ₹0");
+
+  // Very large recovery
+  const hugeSim = await simulationService.simulateRecovery({ customerId: mehtaId, recoveryAmountPaise: 999999999999 });
+  assert(hugeSim?.simulated.financials.outstandingPaise === 0, "Very large recovery handles gracefully without overflow");
+
+  // Determinism repeat test
+  const sim1 = await simulationService.simulateRecovery({ customerId: mehtaId, recoveryAmountPaise: 7500000 });
+  const sim2 = await simulationService.simulateRecovery({ customerId: mehtaId, recoveryAmountPaise: 7500000 });
+  assert(JSON.stringify(sim1?.simulated) === JSON.stringify(sim2?.simulated), "Identical simulation runs produce 100% identical outputs");
+
+  // Negative recovery API validation
+  const resNeg = await app.inject({
+    method: "POST",
+    url: `/api/v1/simulation/customers/${mehtaId}`,
+    payload: { recoveryAmountPaise: -500 },
+  });
+  assert(resNeg.statusCode === 400, "Negative recovery payload returns HTTP 400 BAD_REQUEST");
+
   // POST /api/v1/ai/customers/99999/explanation -> 404
   const res404 = await app.inject({
     method: "POST",
@@ -187,7 +215,7 @@ async function runTests() {
   });
   assert(res404.statusCode === 404, "Invalid customer ID returns 404 NOT_FOUND");
 
-  console.log(`\n🎉 MILESTONE 4 VERIFICATION COMPLETE: ${passed}/${total} TESTS PASSED WITH 100% ACCURACY!\n`);
+  console.log(`\n🎉 MILESTONE 4 & 5 VERIFICATION COMPLETE: ${passed}/${total} TESTS PASSED WITH 100% ACCURACY!\n`);
   process.exit(0);
 }
 

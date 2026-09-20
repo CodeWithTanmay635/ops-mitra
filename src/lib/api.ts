@@ -297,10 +297,12 @@ async function apiFetch<T>(path: string): Promise<T> {
 async function apiFetchPost<T>(path: string, payload?: unknown): Promise<T> {
   let res: Response;
   try {
+    const headers = payload !== undefined ? { "Content-Type": "application/json" } : undefined;
+    const body = payload !== undefined ? JSON.stringify(payload) : undefined;
     res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: payload !== undefined ? JSON.stringify(payload) : undefined,
+      headers,
+      body,
     });
   } catch (cause) {
     throw new Error(

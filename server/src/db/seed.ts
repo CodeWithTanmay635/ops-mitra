@@ -324,10 +324,10 @@ async function seed() {
     // Historical payments for older invoices
     {
       customerId: mehta,
-      receivedAt: dateStr(subDays(TODAY, 22)),
+      receivedAt: "2025-07-20", // Issued 2025-07-02 (subDays 55) -> 18 days baseline
       amountPaise: rupees(186_000),
       method: "neft",
-      reference: "NEFT20250804001",
+      reference: "NEFT20250720001",
     },
     {
       customerId: patel,

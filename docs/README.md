@@ -39,4 +39,13 @@ This directory contains the canonical specifications, architecture documents, an
    - Fastify REST API endpoints & frontend UI components
    - Test suite verification results (49/49 tests passed)
 
+5. [Milestone 5 — Demo Hardening & Final QA Specification](./milestone-5-demo-hardening.md)
+   - Freeze objectives & core principles
+   - Primary demo journey validation (Mehta Traders end-to-end)
+   - Simulation safety & zero database mutation proof
+   - Edge-case safety matrix (8/8 scenarios verified)
+   - AI guardrails & deterministic fallback engine
+   - Resolved QA bugs & final build verification (54/54 tests passed)
+
+
 
