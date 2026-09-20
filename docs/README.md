@@ -31,3 +31,12 @@ This directory contains the canonical specifications, architecture documents, an
    - Fastify REST API Routes (`/api/v1/ai/*`, `/api/v1/simulation/*`)
    - Frontend Interactive Simulator & Customer AI Drawer UI
 
+4. [Milestone 4 — AI Explanation & What-If Simulation Specification](./milestone-4-ai-explanation-simulation.md)
+   - Comprehensive technical architecture & core rules
+   - Structured evidence packets & evidence builder
+   - AI service abstraction & deterministic fallback subsystem
+   - In-memory simulation engine & FIFO recovery model
+   - Fastify REST API endpoints & frontend UI components
+   - Test suite verification results (49/49 tests passed)
+
+
