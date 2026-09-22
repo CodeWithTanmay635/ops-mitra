@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsup src/index.ts --format esm --dts --out-dir dist --clean",
+    "build": "pnpm exec tsup src/index.ts --format esm --dts --out-dir dist --clean",
     "start": "node dist/index.js",
     "test": "tsx src/test/intelligence.test.ts && tsx src/test/milestone4.test.ts",
     "db:generate": "drizzle-kit generate",
