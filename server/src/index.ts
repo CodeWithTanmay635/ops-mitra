@@ -111,7 +111,7 @@ async function buildApp() {
   // ── Frontend / Static Files ──────────────────────────────────────────────────
   // Serve the React production build from the root dist directory
   await app.register(fastifyStatic, {
-    root: path.join(__dirname, "../../dist"),
+    root: path.join(__dirname, "../public"),
     prefix: "/",
     wildcard: false, // Do not intercept all routes automatically
   });
