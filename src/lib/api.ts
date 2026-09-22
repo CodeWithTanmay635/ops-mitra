@@ -18,9 +18,9 @@
 
 // ─── Base URL ─────────────────────────────────────────────────────────────────
 
-const API_BASE: string =
-  (import.meta.env["VITE_API_URL"] as string | undefined) ??
-  "http://localhost:3001";
+const API_BASE: string = import.meta.env.PROD
+  ? (import.meta.env["VITE_API_URL"] as string | undefined) || ""
+  : (import.meta.env["VITE_API_URL"] as string | undefined) || "http://localhost:3001";
 
 // ─── Enums / Literal Types ────────────────────────────────────────────────────
 

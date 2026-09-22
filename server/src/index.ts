@@ -26,6 +26,13 @@ import { healthRoutes } from "./routes/health.js";
 import { intelligenceRoutes } from "./routes/intelligence.js";
 import { aiSimulationRoutes } from "./routes/ai-simulation.js";
 
+import fastifyStatic from "@fastify/static";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 async function buildApp() {
   const app = Fastify({
     // Pino logger — structured JSON logging, much better than console.log
@@ -99,6 +106,22 @@ async function buildApp() {
   await app.register(healthRoutes);
   await app.register(intelligenceRoutes);
   await app.register(aiSimulationRoutes);
+
+  // ── Frontend / Static Files ──────────────────────────────────────────────────
+  // Serve the React production build from the root dist directory
+  await app.register(fastifyStatic, {
+    root: path.join(__dirname, "../../dist"),
+    prefix: "/",
+  });
+
+  // SPA Fallback: If a GET request doesn't match an API route or static file, serve index.html
+  app.setNotFoundHandler((request, reply) => {
+    if (request.method === "GET" && !request.url.startsWith("/api")) {
+      (reply as any).sendFile("index.html");
+    } else {
+      reply.status(404).send({ error: "Not Found", message: `Route ${request.method}:${request.url} not found` });
+    }
+  });
 
   return app;
 }
