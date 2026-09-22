@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>OpsMitra Showcase</title>
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <!-- We don't use SplitText or TextPlugin if not bundled, but GSAP textContent works fine -->
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+      
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #fcfaf8; /* Premium warm neutral */
+        font-family: 'Inter', sans-serif;
+        color: #111827;
+        perspective: 1000px;
+      }
+      
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      /* GLOBAL TYPOGRAPHY overlay */
+      .text-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .title-text {
+        font-size: 88px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        text-align: center;
+        line-height: 1.1;
+        opacity: 0;
+        position: absolute;
+      }
+      .highlight { color: #ea580c; }
+      .brand-title {
+        font-size: 140px;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        color: #ea580c;
+        opacity: 0;
+        position: absolute;
+      }
+      .brand-subtitle {
+        font-size: 48px;
+        font-weight: 500;
+        color: #4b5563;
+        opacity: 0;
+        position: absolute;
+        margin-top: 140px;
+      }
+
+      /* MOCK DASHBOARD UI */
+      #app-ui {
+        position: absolute;
+        width: 2560px;
+        height: 1440px;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%) scale(1.1); /* Starts zoomed in slightly */
+        background: #f3f4f6;
+        border-radius: 32px;
+        display: flex;
+        overflow: hidden;
+        box-shadow: 0 40px 100px -20px rgba(0,0,0,0.15);
+        opacity: 0;
+        z-index: 10;
+        filter: blur(10px);
+      }
+      
+      .sidebar {
+        width: 320px;
+        background: #111827;
+        color: white;
+        padding: 40px;
+      }
+      .sidebar-logo { font-size: 32px; font-weight: 800; color: white; margin-bottom: 60px; }
+      .nav-item { padding: 20px 0; font-size: 20px; font-weight: 500; color: #9ca3af; }
+      .nav-item.active { color: #ea580c; }
+      
+      .main-content {
+        flex: 1;
+        padding: 60px;
+        display: flex;
+        flex-direction: column;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 60px;
+      }
+      .header h1 { font-size: 48px; font-weight: 700; }
+      
+      .data-table {
+        background: white;
+        border-radius: 24px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        flex: 1;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+        padding: 30px 40px;
+        border-bottom: 1px solid #f3f4f6;
+        font-size: 24px;
+        align-items: center;
+      }
+      .row.header-row { font-weight: 600; color: #6b7280; font-size: 18px; text-transform: uppercase; background: #f9fafb; }
+      .row.target-row { position: relative; cursor: pointer; }
+      .row.target-row::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #ea580c;
+        opacity: 0;
+        z-index: 0;
+        border-radius: 12px;
+        transition: opacity 0.2s;
+      }
+      .row > div { position: relative; z-index: 1; }
+      .customer-name { font-weight: 600; color: #111827; }
+      .amount { font-family: monospace; font-weight: 600; font-size: 28px; }
+      .badge-high { background: #fee2e2; color: #991b1b; padding: 8px 16px; border-radius: 999px; font-size: 18px; font-weight: 600; display: inline-block; }
+      .badge-med { background: #fef08a; color: #854d0e; padding: 8px 16px; border-radius: 999px; font-size: 18px; font-weight: 600; display: inline-block; }
+
+      /* INTELLIGENCE DRAWER */
+      #drawer {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 700px;
+        background: white;
+        box-shadow: -20px 0 50px rgba(0,0,0,0.1);
+        transform: translateX(100%);
+        padding: 60px;
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #e5e7eb;
+        z-index: 20;
+      }
+      .drawer-header { margin-bottom: 40px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; }
+      .drawer-title { font-size: 48px; font-weight: 700; margin-bottom: 10px; }
+      .drawer-subtitle { font-size: 24px; color: #6b7280; }
+      
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-bottom: 40px;
+      }
+      .metric-box {
+        background: #f9fafb;
+        padding: 30px;
+        border-radius: 20px;
+        border: 1px solid #e5e7eb;
+      }
+      .m-label { font-size: 18px; color: #6b7280; font-weight: 600; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em; }
+      .m-value { font-size: 56px; font-weight: 700; color: #111827; display: flex; align-items: baseline; gap: 8px; }
+      .m-value.danger { color: #dc2626; }
+      .m-value span.unit { font-size: 24px; font-weight: 500; color: #6b7280; }
+      
+      #action-block {
+        background: #ea580c;
+        border-radius: 20px;
+        padding: 30px;
+        margin-top: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .action-label { color: rgba(255,255,255,0.8); font-size: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+      .action-value { color: white; font-size: 40px; font-weight: 700; }
+
+      /* SIMULATION OVERLAY */
+      #sim-splash {
+        position: absolute;
+        inset: 0;
+        background: #ea580c;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        clip-path: circle(0% at center);
+      }
+      .sim-splash-text {
+        font-size: 80px;
+        font-weight: 700;
+        color: white;
+        text-align: center;
+        opacity: 0;
+      }
+
+      #sim-ui-header {
+        background: #fff7ed;
+        padding: 24px;
+        border-radius: 16px;
+        margin-bottom: 30px;
+        border: 2px dashed #fdba74;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        opacity: 0;
+      }
+      .sim-ui-icon { font-size: 32px; background: #ea580c; color: white; border-radius: 12px; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; }
+      .sim-ui-text { font-size: 28px; font-weight: 600; color: #9a3412; }
+
+      /* KINETIC TYPOGRAPHY (34-40s) */
+      .flow-container {
+        display: flex;
+        gap: 30px;
+        align-items: center;
+        font-size: 48px;
+        font-weight: 700;
+        position: absolute;
+        opacity: 0;
+      }
+      .flow-item {
+        background: white;
+        padding: 20px 40px;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        color: #111827;
+      }
+      .flow-arr { color: #ea580c; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="50" data-width="1920" data-height="1080">
+      
+      <!-- BACKGROUND UI LAYER -->
+      <div id="app-ui">
+        <div class="sidebar">
+          <div class="sidebar-logo">OpsMitra</div>
+          <div class="nav-item">Overview</div>
+          <div class="nav-item active">Receivables</div>
+          <div class="nav-item">Customers</div>
+          <div class="nav-item">Settings</div>
+        </div>
+        <div class="main-content">
+          <div class="header">
+            <h1>Receivables Intelligence</h1>
+            <div style="font-size: 24px; font-weight: 600; color: #6b7280;">Total Risk Exposure: <span style="color: #111827;">₹8,450,000</span></div>
+          </div>
+          <div class="data-table">
+            <div class="row header-row">
+              <div>Customer</div>
+              <div>Outstanding</div>
+              <div>Overdue</div>
+              <div>Risk Score</div>
+              <div>Priority</div>
+            </div>
+            <!-- Row 1: Target -->
+            <div class="row target-row" id="mehta-row">
+              <div class="customer-name">Mehta Traders</div>
+              <div class="amount" id="mehta-amt">₹1,24,000</div>
+              <div style="color: #dc2626; font-weight: 600;">43 Days</div>
+              <div id="mehta-risk"><span class="badge-high">95 HIGH</span></div>
+              <div style="font-weight: 700; font-size: 28px;" id="mehta-pri">72</div>
+            </div>
+            <!-- Mock rows -->
+            <div class="row"><div class="customer-name">Acme Corp</div><div class="amount">₹45,000</div><div>12 Days</div><div><span class="badge-med">45 MED</span></div><div style="font-weight: 600;">34</div></div>
+            <div class="row"><div class="customer-name">Apex Global</div><div class="amount">₹89,000</div><div>28 Days</div><div><span class="badge-high">82 HIGH</span></div><div style="font-weight: 600;">65</div></div>
+            <div class="row"><div class="customer-name">Zenith Tech</div><div class="amount">₹12,000</div><div>4 Days</div><div><span style="background: #dcfce7; color: #166534; padding: 8px 16px; border-radius: 999px; font-size: 18px; font-weight: 600;">12 LOW</span></div><div style="font-weight: 600;">8</div></div>
+            <div class="row"><div class="customer-name">Nexus Ltd</div><div class="amount">₹210,000</div><div>35 Days</div><div><span class="badge-high">88 HIGH</span></div><div style="font-weight: 600;">70</div></div>
+          </div>
+        </div>
+
+        <!-- DRAWER -->
+        <div id="drawer">
+          <div class="drawer-header">
+            <div class="drawer-title">Mehta Traders</div>
+            <div class="drawer-subtitle">Receivables Profile & Intelligence</div>
+          </div>
+          
+          <div id="sim-ui-header">
+            <div class="sim-ui-icon">✨</div>
+            <div class="sim-ui-text">Simulating ₹75,000 recovery</div>
+          </div>
+
+          <div class="metrics-grid">
+            <div class="metric-box" id="box-out">
+              <div class="m-label">Outstanding</div>
+              <div class="m-value" id="val-out">124<span class="unit">k</span></div>
+            </div>
+            <div class="metric-box" id="box-risk">
+              <div class="m-label">Risk Score</div>
+              <div class="m-value danger" id="val-risk">95<span class="unit">HIGH</span></div>
+            </div>
+            <div class="metric-box" id="box-pri">
+              <div class="m-label">Priority</div>
+              <div class="m-value" id="val-pri">72</div>
+            </div>
+            <div class="metric-box">
+              <div class="m-label">Max Overdue</div>
+              <div class="m-value">43<span class="unit">days</span></div>
+            </div>
+          </div>
+
+          <div id="action-block">
+            <div class="action-label">Recommended Action</div>
+            <div class="action-value" id="val-act">Escalate Immediately</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIMULATION SPLASH SCREEN -->
+      <div id="sim-splash">
+        <div class="sim-splash-text" id="sim-q">What if this customer<br>pays <span style="color: #fed7aa;">₹75,000</span>?</div>
+      </div>
+
+      <!-- TEXT OVERLAY LAYER -->
+      <div class="text-layer">
+        <div class="title-text" id="t-hook1">MSMEs don't need<br>another dashboard.</div>
+        <div class="title-text" id="t-hook2">They need to know<br>what to <span class="highlight">act on next</span>.</div>
+        
+        <div class="brand-title" id="t-brand1">OpsMitra</div>
+        <div class="brand-subtitle" id="t-brand2">Your next business decision.</div>
+
+        <div class="title-text" id="t-concept">One payment<br>changes the decision.</div>
+        
+        <div class="flow-container" id="flow">
+          <div class="flow-item" id="f-data">DATA</div>
+          <div class="flow-arr" id="f-a1">→</div>
+          <div class="flow-item" id="f-int">INTELLIGENCE</div>
+          <div class="flow-arr" id="f-a2">→</div>
+          <div class="flow-item" id="f-dec">DECISION</div>
+          <div class="flow-arr" id="f-a3">→</div>
+          <div class="flow-item highlight" id="f-act">ACTION</div>
+        </div>
+      </div>
+
+    </div>
+
+    <script>
+      // Force textContent updates to be integers for GSAP
+      gsap.registerPlugin({
+        name: "snap",
+        init: function() { return false; } // we'll use onUpdate
+      });
+
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["main"] = tl;
+
+      /* =========================================================
+         0 - 6s: HOOK & REVEAL
+      ========================================================= */
+      // 0-1.5s: "MSMEs don't need another dashboard."
+      tl.to("#t-hook1", { opacity: 1, y: -20, duration: 0.4, ease: "power2.out" }, 0.5)
+        .to("#t-hook1", { opacity: 0, y: -40, duration: 0.3 }, 2.0);
+      
+      // 2-3.5s: "They need to know what to act on next."
+      tl.fromTo("#t-hook2", { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(1.2)" }, 2.3)
+        .to("#t-hook2", { opacity: 0, scale: 1.05, duration: 0.3 }, 4.0);
+
+      // 4-6s: Brand Reveal
+      tl.to("#t-brand1", { opacity: 1, y: -20, duration: 0.6, ease: "power4.out" }, 4.3)
+        .to("#t-brand2", { opacity: 1, y: -10, duration: 0.6, ease: "power3.out" }, 4.5)
+        .to("#t-brand1, #t-brand2", { opacity: 0, duration: 0.4 }, 6.0);
+
+      /* =========================================================
+         6 - 16s: THE DASHBOARD & INTELLIGENCE
+      ========================================================= */
+      // Fade in UI, unblur, zoom out slightly
+      tl.to("#app-ui", { opacity: 1, filter: "blur(0px)", scale: 0.75, duration: 1.2, ease: "power3.inOut" }, 6.2);
+      
+      // 8s: Fast Camera Pan & Zoom to Mehta Traders row
+      tl.to("#app-ui", { 
+        x: -400, // pan right (moves container left)
+        y: -100, // pan down
+        scale: 1.1, 
+        duration: 1.5, 
+        ease: "power4.inOut" 
+      }, 7.5);
+      
+      // Highlight row
+      tl.to("#mehta-row::after", { opacity: 0.1, duration: 0.3 }, 8.5);
+
+      // 10s: Open Intelligence Drawer (Camera shifts left to make room)
+      tl.to("#app-ui", { x: -700, duration: 1.2, ease: "power3.inOut" }, 9.5);
+      tl.to("#drawer", { x: 0, duration: 1.0, ease: "power4.out", boxShadow: "-40px 0 100px rgba(0,0,0,0.2)" }, 9.7);
+
+      // Stagger metrics pop
+      tl.fromTo(".metric-box", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, stagger: 0.1, ease: "back.out(1.5)" }, 10.5);
+      tl.fromTo("#action-block", { scale: 0.9, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "elastic.out(1, 0.7)" }, 11.2);
+
+      // Pulse Action block
+      tl.to("#action-block", { scale: 1.03, boxShadow: "0 20px 40px rgba(234, 88, 12, 0.3)", yoyo: true, repeat: 3, duration: 0.5, ease: "sine.inOut" }, 12.5);
+
+      /* =========================================================
+         16 - 20s: THE SIMULATION QUESTION
+      ========================================================= */
+      // 16s: Fast aggressive splash transition
+      tl.to("#sim-splash", { clipPath: "circle(150% at center)", duration: 0.8, ease: "power4.inOut" }, 16);
+      tl.to("#sim-q", { opacity: 1, y: -20, duration: 0.5, ease: "back.out(1.2)" }, 16.5);
+      
+      // 19s: Exit splash revealing updated UI
+      tl.to("#sim-q", { opacity: 0, scale: 1.1, duration: 0.3 }, 19);
+      tl.to("#sim-splash", { opacity: 0, duration: 0.5 }, 19.3);
+
+      /* =========================================================
+         20 - 34s: THE SIMULATION RESULTS (ANIMATING)
+      ========================================================= */
+      // Show simulation banner inside drawer
+      tl.to("#sim-ui-header", { opacity: 1, y: 10, duration: 0.5, ease: "power2.out" }, 19.5);
+      
+      // Camera zooms specifically on the metrics grid
+      tl.to("#app-ui", { scale: 1.4, x: -1100, y: 100, duration: 1.5, ease: "power3.inOut" }, 20.0);
+
+      // 21.5s: Start animating numbers DOWN
+      let metrics = { out: 124, risk: 95, pri: 72 };
+      
+      // Box highlights
+      tl.to("#box-out", { backgroundColor: "#fff7ed", borderColor: "#fed7aa", duration: 0.3 }, 21.5);
+      tl.to(metrics, {
+        out: 49,
+        duration: 1.5,
+        ease: "power2.out",
+        onUpdate: () => { document.getElementById("val-out").innerHTML = Math.round(metrics.out) + '<span class="unit">k</span>'; }
+      }, 21.5);
+
+      tl.to("#box-risk", { backgroundColor: "#fefce8", borderColor: "#fef08a", duration: 0.3 }, 22.0);
+      tl.to("#val-risk", { color: "#854d0e", duration: 0.3 }, 22.0);
+      tl.to(metrics, {
+        risk: 40,
+        duration: 1.5,
+        ease: "power2.out",
+        onUpdate: () => { document.getElementById("val-risk").innerHTML = Math.round(metrics.risk) + '<span class="unit">MED</span>'; }
+      }, 22.0);
+
+      tl.to("#box-pri", { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0", duration: 0.3 }, 22.5);
+      tl.to(metrics, {
+        pri: 45,
+        duration: 1.5,
+        ease: "power2.out",
+        onUpdate: () => { document.getElementById("val-pri").innerHTML = Math.round(metrics.pri); }
+      }, 22.5);
+
+      // 24s: Camera pans down to Action block
+      tl.to("#app-ui", { y: -200, duration: 1.5, ease: "power3.inOut" }, 24.5);
+      
+      // 26s: Action transforms
+      tl.to("#action-block", { backgroundColor: "#0ea5e9", scale: 1.05, duration: 0.5, ease: "power2.out" }, 26.5);
+      tl.to(".action-value", { 
+        opacity: 0, 
+        duration: 0.2, 
+        onComplete: () => { document.getElementById("val-act").innerText = "Proactive Check-in"; }
+      }, 26.5);
+      tl.to(".action-value", { opacity: 1, duration: 0.3 }, 26.8);
+      tl.to("#action-block", { scale: 1, duration: 0.3 }, 27.1);
+
+      // 30s: Camera pulls back to see full drawer
+      tl.to("#app-ui", { scale: 1.0, x: -700, y: 0, duration: 1.5, ease: "power3.inOut" }, 30);
+      
+      // 32.5s: Fade out UI completely
+      tl.to("#app-ui", { opacity: 0, filter: "blur(20px)", scale: 0.8, duration: 1.0, ease: "power2.in" }, 32.5);
+
+      /* =========================================================
+         34 - 40s: KINETIC FLOW
+      ========================================================= */
+      tl.to("#t-concept", { opacity: 1, scale: 1, duration: 0.6, ease: "power3.out" }, 34);
+      tl.to("#t-concept", { opacity: 0, y: -30, duration: 0.4 }, 36.5);
+
+      tl.to("#flow", { opacity: 1, duration: 0.1 }, 37);
+      tl.fromTo("#f-data", { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4 }, 37.1);
+      tl.fromTo("#f-a1", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 37.4);
+      tl.fromTo("#f-int", { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4 }, 37.5);
+      tl.fromTo("#f-a2", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 37.8);
+      tl.fromTo("#f-dec", { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4 }, 37.9);
+      tl.fromTo("#f-a3", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 38.2);
+      tl.fromTo("#f-act", { scale: 0.8, opacity: 0 }, { scale: 1.1, opacity: 1, duration: 0.5, ease: "back.out(2)" }, 38.4);
+      tl.to("#f-act", { scale: 1, duration: 0.2 }, 38.9);
+
+      tl.to("#flow", { opacity: 0, filter: "blur(10px)", duration: 0.5 }, 40.5);
+
+      /* =========================================================
+         41 - 50s: OUTRO
+      ========================================================= */
+      tl.to("#t-brand1", { opacity: 1, y: 0, scale: 1.1, duration: 1.0, ease: "power4.out" }, 41.5);
+      tl.to("#t-brand2", { opacity: 1, y: 0, duration: 1.0, ease: "power3.out" }, 42.0);
+      tl.to("#t-brand2", { onStart: () => document.getElementById("t-brand2").innerText = "Turn business data into the next decision." }, 41.5);
+      
+      // End at 50s
+      tl.seek(0);
+    </script>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 {
+  "title": "ops-mitra",
   "description": "AI-powered platform for MSMEs that analyzes financial data to highlight key insights, prioritize actions, and recommend next business steps.",
   "robots": {
     "index": false
