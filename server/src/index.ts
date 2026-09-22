@@ -112,15 +112,27 @@ async function buildApp() {
   await app.register(fastifyStatic, {
     root: path.join(__dirname, "../../dist"),
     prefix: "/",
+    wildcard: false, // Do not intercept all routes automatically
   });
 
-  // SPA Fallback: If a GET request doesn't match an API route or static file, serve index.html
-  app.setNotFoundHandler((request, reply) => {
-    if (request.method === "GET" && !request.url.startsWith("/api")) {
-      (reply as any).sendFile("index.html");
-    } else {
-      reply.status(404).send({ error: "Not Found", message: `Route ${request.method}:${request.url} not found` });
+  // SPA Fallback: Explicit route for all unmatched GET requests
+  app.get("/*", (request, reply) => {
+    if (!request.url.startsWith("/api")) {
+      return reply.sendFile("index.html");
     }
+    // If it's an API route that wasn't matched, return the standard 404 JSON
+    return reply.status(404).send({ 
+      error: "Not Found", 
+      message: `Route ${request.method}:${request.url} not found` 
+    });
+  });
+
+  // Catch-all for non-GET methods (e.g., POST /missing)
+  app.setNotFoundHandler((request, reply) => {
+    reply.status(404).send({ 
+      error: "Not Found", 
+      message: `Route ${request.method}:${request.url} not found` 
+    });
   });
 
   return app;
