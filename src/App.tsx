@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import {
   fetchPortfolio,
   fetchCustomerExplanation,
@@ -1302,10 +1302,122 @@ function LoadingScreen() {
   );
 }
 
+// ─── Landing screen ─────────────────────────────────────────────────────────────
+
+function LandingScreen({ onComplete }: { onComplete: () => void }) {
+  const [loading, setLoading] = useState(false);
+
+  const start = () => {
+    setLoading(true);
+    setTimeout(() => {
+      onComplete();
+    }, 1500);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: C.bg }}>
+        <style>{`
+          .wf-container { display: flex; align-items: center; width: 100%; max-width: 500px; padding: 0 32px; }
+          .wf-node {
+            width: 14px; height: 14px; border-radius: 50%; background-color: ${C.border};
+            position: relative; z-index: 2;
+          }
+          .wf-line {
+            flex: 1; height: 2px; background-color: ${C.border};
+            position: relative; overflow: hidden; margin: 0 -1px;
+          }
+          .wf-label {
+            position: absolute; top: 24px; left: 50%; transform: translateX(-50%);
+            font-size: 10px; font-weight: 700; color: ${C.ink3}; text-transform: uppercase;
+            letter-spacing: 0.08em; white-space: nowrap; transition: color 0.2s;
+          }
+          .wf-fill {
+            position: absolute; top: 0; left: 0; bottom: 0; width: 100%;
+            background-color: ${C.orange}; transform-origin: left; transform: scaleX(0);
+          }
+          
+          /* Animations */
+          @keyframes nodeOn { to { background-color: ${C.orange}; box-shadow: 0 0 0 4px ${C.orangeFaint}; } }
+          @keyframes labelOn { to { color: ${C.orange}; } }
+          @keyframes lineOn { to { transform: scaleX(1); } }
+
+          @media (prefers-reduced-motion: reduce) {
+            .wf-node, .wf-fill, .wf-label { animation-duration: 0.01s !important; animation-delay: 0s !important; }
+          }
+        `}</style>
+        <div className="wf-container">
+          {["DATA", "SIGNALS", "RISK", "PRIORITY", "ACTION"].map((step, i, arr) => (
+            <Fragment key={step}>
+              <div className="wf-node" style={{ animation: `nodeOn 0.1s ease forwards ${i * 0.3}s` }}>
+                <span className="wf-label" style={{ animation: `labelOn 0.1s ease forwards ${i * 0.3}s` }}>{step}</span>
+              </div>
+              {i < arr.length - 1 && (
+                <div className="wf-line">
+                  <div className="wf-fill" style={{ animation: `lineOn 0.25s linear forwards ${i * 0.3 + 0.05}s` }} />
+                </div>
+              )}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", backgroundColor: C.bg, overflowY: "auto" }}>
+      <div style={{ maxWidth: 800, margin: "0 auto", padding: "64px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+        <p style={{ fontSize: 20, fontWeight: 700, color: C.ink, letterSpacing: "-0.4px", marginBottom: 48 }}>OpsMitra</p>
+        
+        <h1 style={{ fontSize: "clamp(36px, 5vw, 48px)", fontWeight: 700, color: C.ink, letterSpacing: "-1px", lineHeight: 1.1, marginBottom: 24 }}>
+          Your next business decision,<br />not another dashboard.
+        </h1>
+        
+        <p style={{ fontSize: "clamp(16px, 2vw, 18px)", color: C.ink2, lineHeight: 1.5, maxWidth: 600, marginBottom: 40 }}>
+          OpsMitra turns sales, receivables and customer signals into prioritized actions — so business owners know what needs attention next.
+        </p>
+        
+        <Btn size="md" onClick={start}>Let's Start →</Btn>
+        
+        <div style={{ marginTop: 80, width: "100%", maxWidth: 600 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 48, fontSize: 12, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <span>Business Data</span>
+            <Ic.ArrowRight />
+            <span>Analyze</span>
+            <Ic.ArrowRight />
+            <span>Detect</span>
+            <Ic.ArrowRight />
+            <span>Prioritize</span>
+            <Ic.ArrowRight />
+            <span>Act</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 24, textAlign: "left" }}>
+            <div style={{ backgroundColor: C.surfaceAlt, padding: 20, borderRadius: 14, boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.04), inset -1px -1px 3px rgba(255,255,255,0.5)" }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: C.ink, marginBottom: 8 }}>1. Analyze</h3>
+              <p style={{ fontSize: 13, color: C.ink2, lineHeight: 1.4 }}>Turn operational data into meaningful business signals.</p>
+            </div>
+            <div style={{ backgroundColor: C.surfaceAlt, padding: 20, borderRadius: 14, boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.04), inset -1px -1px 3px rgba(255,255,255,0.5)" }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: C.ink, marginBottom: 8 }}>2. Prioritize</h3>
+              <p style={{ fontSize: 13, color: C.ink2, lineHeight: 1.4 }}>Surface customers and situations that actually need attention.</p>
+            </div>
+            <div style={{ backgroundColor: C.surfaceAlt, padding: 20, borderRadius: 14, boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.04), inset -1px -1px 3px rgba(255,255,255,0.5)" }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: C.ink, marginBottom: 8 }}>3. Act</h3>
+              <p style={{ fontSize: 13, color: C.ink2, lineHeight: 1.4 }}>Explain the reason, draft the follow-up, and simulate the impact.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── App shell ────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [nav, setNav] = useState("overview");
+  const [nav, setNav] = useState(() => {
+    return sessionStorage.getItem("opsmitra_intro") ? "overview" : "landing";
+  });
   const [open, setOpen] = useState(false);
   const portfolioState = usePortfolio();
 
@@ -1352,6 +1464,15 @@ export default function App() {
       case "settings":    return <PlaceholderScreen title="Settings" sub="Account preferences, notifications, and team management." />;
       default:            return portfolio ? <OverviewScreen portfolio={portfolio} /> : null;
     }
+  }
+
+  if (nav === "landing") {
+    return (
+      <LandingScreen onComplete={() => {
+        sessionStorage.setItem("opsmitra_intro", "1");
+        setNav("overview");
+      }} />
+    );
   }
 
   return (
