@@ -55,18 +55,42 @@ async function buildApp() {
   await app.register(sensible);
   await app.register(errorHandler);
 
-  // CORS: Allow the Vite frontend dev server (port 8443) and any localhost
-  // origin to call the API. In production this should be locked to the
-  // specific deployed frontend origin via the CORS_ORIGIN env variable.
+  // CORS: Dynamic origin configuration based on environment
+  const localOrigins = [
+    "http://localhost:8443",
+    "http://127.0.0.1:8443",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+  ];
+
+  // Dynamically match any OpsMitra Vercel URL (e.g. ops-mitra-6py7.vercel.app)
+  const vercelRegex = /^https:\/\/ops-mitra.*\.vercel\.app$/;
+
+  let allowedOrigins: (string | RegExp)[] = [...localOrigins, vercelRegex];
+
+  if (env.NODE_ENV === "production") {
+    if (env.CORS_ORIGIN) {
+      allowedOrigins = [
+        ...env.CORS_ORIGIN.split(",").map((o) => o.trim()),
+        vercelRegex,
+      ];
+    } else {
+      // If production but no CORS_ORIGIN is set, default to vercel regex to be safe
+      allowedOrigins = [vercelRegex];
+    }
+  } else if (env.CORS_ORIGIN) {
+    // In development/test, append explicitly defined origins to the local ones
+    allowedOrigins = [
+      ...localOrigins,
+      ...env.CORS_ORIGIN.split(",").map((o) => o.trim()),
+      vercelRegex,
+    ];
+  }
+
   await app.register(cors, {
-    origin: [
-      "http://localhost:8443",
-      "http://127.0.0.1:8443",
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-      "http://localhost:5174",
-      "http://127.0.0.1:5174",
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST", "OPTIONS"],
     credentials: false,
   });
@@ -111,10 +135,7 @@ async function main() {
   try {
     const address = await app.listen({
       port: env.PORT,
-      // "0.0.0.0" means listen on all network interfaces.
-      // "127.0.0.1" would only be accessible from localhost.
-      // For a hackathon demo server, 0.0.0.0 is fine.
-      host: "0.0.0.0",
+      host: env.HOST,
     });
 
     app.log.info(`🚀 OpsMitra server running at ${address}`);
