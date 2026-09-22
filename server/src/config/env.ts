@@ -23,6 +23,12 @@ const envSchema = z.object({
   // Server port — optional, defaults to 3001
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
 
+  // Server host — optional, defaults to "::" to support Railway IPv6/IPv4 binding
+  HOST: z.string().default("::"),
+
+  // CORS Origin for production
+  CORS_ORIGIN: z.string().optional(),
+
   // Node environment
   NODE_ENV: z
     .enum(["development", "production", "test"])

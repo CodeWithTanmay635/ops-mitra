@@ -1,6 +1,5 @@
 {
   "name": "ops-mitra-server",
-  "packageManager": "pnpm@10.34.3",
   "version": "0.1.0",
   "description": "OpsMitra backend — Fastify + Drizzle + PostgreSQL",
   "private": true,
