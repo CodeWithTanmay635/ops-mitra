@@ -26,6 +26,7 @@ import { healthRoutes } from "./routes/health.js";
 import { intelligenceRoutes } from "./routes/intelligence.js";
 import { aiSimulationRoutes } from "./routes/ai-simulation.js";
 
+// @ts-ignore - The IDE language server sometimes struggles to resolve @fastify/static types even though tsup compiles it fine
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -118,7 +119,7 @@ async function buildApp() {
   // SPA Fallback: Explicit route for all unmatched GET requests
   app.get("/*", (request, reply) => {
     if (!request.url.startsWith("/api")) {
-      return reply.sendFile("index.html");
+      return (reply as any).sendFile("index.html");
     }
     // If it's an API route that wasn't matched, return the standard 404 JSON
     return reply.status(404).send({ 
